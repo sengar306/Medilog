@@ -49,6 +49,6 @@ services:
 staticSites:
   - name: medilog-frontend
     rootDir: frontend
-    buildCommand: npm install && npx ng build --configuration production
+    buildCommand: npm install && NODE_OPTIONS=--max-old-space-size=400 npx ng build --configuration production --no-progress
     staticPublishPath: dist/frontend/browser
     plan: free

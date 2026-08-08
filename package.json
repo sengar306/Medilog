@@ -1,0 +1,9 @@
+{
+  "name": "medilog-workspace",
+  "version": "1.0.0",
+  "description": "MediLog Pharmacy Platform Workspace",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js"
+  }
+}

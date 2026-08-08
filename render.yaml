@@ -1,4 +1,5 @@
 services:
+  # ── Backend: Node.js API ──────────────────────────────────────────────────
   - type: web
     name: medilog-backend
     runtime: node
@@ -15,13 +16,13 @@ services:
         value: production
 
       - key: PORT
-        value: 10000         # Render assigns its own port via $PORT; this is a fallback default
+        value: 10000
 
       - key: MONGO_URI
         sync: false          # ← Paste your MongoDB Atlas connection string in Render dashboard
 
       - key: JWT_SECRET
-        sync: false          # ← Set a strong random secret in Render dashboard
+        sync: false
 
       - key: GEMINI_API_KEY
         sync: false
@@ -43,3 +44,11 @@ services:
 
       - key: FACEBOOK_REDIRECT_URI
         sync: false
+
+# ── Frontend: Angular Static Site ─────────────────────────────────────────
+staticSites:
+  - name: medilog-frontend
+    rootDir: frontend
+    buildCommand: npm install && npx ng build --configuration production
+    staticPublishPath: dist/frontend/browser
+    plan: free

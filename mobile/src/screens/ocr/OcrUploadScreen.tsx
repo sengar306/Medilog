@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, Image, Alert, TouchableOpacity } from 'react-native';
 import { Button, Card, Title, ActivityIndicator } from 'react-native-paper';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import * as ImagePicker from 'expo-image-picker';
 import apiClient from '../../api/apiClient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface OcrItem {
   medicineName: string;
@@ -21,56 +21,58 @@ export const OcrUploadScreen: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [parsedItems, setParsedItems] = useState<OcrItem[]>([]);
 
-  const handleCapture = () => {
-    launchCamera(
-      {
-        mediaType: 'photo',
-        quality: 0.8,
-      },
-      (response) => {
-        if (response.didCancel) return;
-        if (response.errorMessage) {
-          Alert.alert('Error', response.errorMessage);
-          return;
-        }
-        if (response.assets && response.assets.length > 0) {
-          const asset = response.assets[0];
-          setImageUri(asset.uri || null);
-          setFileData({
-            uri: asset.uri,
-            type: asset.type || 'image/jpeg',
-            name: asset.fileName || 'invoice.jpg',
-          });
-          setParsedItems([]);
-        }
-      }
-    );
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is needed to capture invoices.');
+      return false;
+    }
+    return true;
   };
 
-  const handleGallery = () => {
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        quality: 0.8,
-      },
-      (response) => {
-        if (response.didCancel) return;
-        if (response.errorMessage) {
-          Alert.alert('Error', response.errorMessage);
-          return;
-        }
-        if (response.assets && response.assets.length > 0) {
-          const asset = response.assets[0];
-          setImageUri(asset.uri || null);
-          setFileData({
-            uri: asset.uri,
-            type: asset.type || 'image/jpeg',
-            name: asset.fileName || 'invoice.jpg',
-          });
-          setParsedItems([]);
-        }
-      }
-    );
+  const handleCapture = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setFileData({
+        uri: asset.uri,
+        type: asset.type === 'image' ? 'image/jpeg' : (asset.mimeType || 'image/jpeg'),
+        name: asset.fileName || 'invoice.jpg',
+      });
+      setParsedItems([]);
+    }
+  };
+
+  const handleGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Photo library permission is needed to pick invoices.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setFileData({
+        uri: asset.uri,
+        type: asset.type === 'image' ? 'image/jpeg' : (asset.mimeType || 'image/jpeg'),
+        name: asset.fileName || 'invoice.jpg',
+      });
+      setParsedItems([]);
+    }
   };
 
   const handleOcrProcess = async () => {
@@ -101,7 +103,7 @@ export const OcrUploadScreen: React.FC = () => {
         const { jobId } = uploadRes.data;
         setStatusMessage('AI engine parsing medicines (this takes a moment)...');
         
-        // 2. Poll result status (mocking a delay and polling endpoint)
+        // 2. Poll result status
         let attempts = 0;
         const pollInterval = setInterval(async () => {
           attempts++;
@@ -120,7 +122,6 @@ export const OcrUploadScreen: React.FC = () => {
               setStatusMessage('');
               Alert.alert('Parse Failed', 'AI OCR engine was unable to read this invoice style.');
             } else if (attempts > 10) {
-              // Timeout after ~30 seconds
               clearInterval(pollInterval);
               setLoading(false);
               setStatusMessage('');
@@ -145,7 +146,6 @@ export const OcrUploadScreen: React.FC = () => {
     if (parsedItems.length === 0) return;
     setLoading(true);
     try {
-      // Confirm parsed purchase structure
       await apiClient.post('/invoice/confirm', {
         items: parsedItems,
         invoiceNumber: `OCR-${Date.now().toString().slice(-6)}`,

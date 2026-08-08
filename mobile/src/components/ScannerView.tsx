@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
-import { Camera, useCameraDevice, useCodeScanner } from 'react-native-vision-camera';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Button } from 'react-native-paper';
 
 interface ScannerProps {
@@ -9,53 +9,35 @@ interface ScannerProps {
 }
 
 export const ScannerView: React.FC<ScannerProps> = ({ onScan, onClose }) => {
-  const [hasPermission, setHasPermission] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const device = useCameraDevice('back');
-
-  const codeScanner = useCodeScanner({
-    codeTypes: ['ean-13', 'ean-8', 'qr', 'code-128', 'upc-a'],
-    onCodeScanned: (codes) => {
-      if (codes.length > 0 && codes[0].value) {
-        onScan(codes[0].value);
-      }
-    },
-  });
+  const [permission, requestPermission] = useCameraPermissions();
+  const scannedRef = useRef(false);
 
   useEffect(() => {
-    (async () => {
-      const status = await Camera.requestCameraPermission();
-      setHasPermission(status === 'granted');
-      setLoading(false);
-    })();
+    scannedRef.current = false;
   }, []);
 
-  if (loading) {
+  const handleBarCodeScanned = ({ data }: BarcodeScanningResult) => {
+    if (scannedRef.current) return;
+    scannedRef.current = true;
+    onScan(data);
+  };
+
+  if (!permission) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6200ee" />
         <Text style={styles.text}>Requesting camera permission...</Text>
       </View>
     );
   }
 
-  if (!hasPermission) {
+  if (!permission.granted) {
     return (
       <View style={styles.center}>
         <Text style={styles.error}>Camera permission is required to scan barcodes.</Text>
-        <Button mode="contained" onPress={onClose} style={styles.btn}>
-          Go Back
+        <Button mode="contained" onPress={requestPermission} style={styles.btn}>
+          Grant Permission
         </Button>
-      </View>
-    );
-  }
-
-  if (!device) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.error}>No back camera device found on this phone.</Text>
-        <Button mode="contained" onPress={onClose} style={styles.btn}>
+        <Button mode="outlined" onPress={onClose} style={[styles.btn, { marginTop: 12 }]} textColor="#bb86fc">
           Go Back
         </Button>
       </View>
@@ -64,16 +46,23 @@ export const ScannerView: React.FC<ScannerProps> = ({ onScan, onClose }) => {
 
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={true}
-        codeScanner={codeScanner}
+        facing="back"
+        barcodeScannerSettings={{
+          barcodeTypes: ['ean13', 'ean8', 'qr', 'code128', 'upc_a'],
+        }}
+        onBarcodeScanned={handleBarCodeScanned}
       />
       <View style={styles.overlay}>
         <View style={styles.finder} />
         <Text style={styles.overlayText}>Center the barcode within the box</Text>
-        <Button mode="contained" onPress={onClose} buttonColor="rgba(255, 0, 0, 0.7)" style={styles.closeBtn}>
+        <Button
+          mode="contained"
+          onPress={onClose}
+          buttonColor="rgba(255, 0, 0, 0.7)"
+          style={styles.closeBtn}
+        >
           Cancel Scan
         </Button>
       </View>

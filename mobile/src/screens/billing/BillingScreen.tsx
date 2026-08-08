@@ -6,7 +6,7 @@ import { RootState } from '../../redux/store';
 import apiClient from '../../api/apiClient';
 import ScannerView from '../../components/ScannerView';
 import { PDFInvoiceBuilder } from '../../utils/pdfInvoiceBuilder';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface Medicine {
   _id: string;

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { TextInput, Card, IconButton, Button, Chip } from 'react-native-paper';
 import apiClient from '../../api/apiClient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface Medicine {
   _id: string;

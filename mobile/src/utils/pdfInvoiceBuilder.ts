@@ -1,6 +1,5 @@
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
-import RNPrint from 'react-native-print';
-import Share from 'react-native-share';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 export interface InvoiceData {
   invoiceNumber: string;
@@ -112,26 +111,23 @@ export class PDFInvoiceBuilder {
 
   static async generatePDF(data: InvoiceData): Promise<string> {
     const html = this.buildHTML(data);
-    const options = {
-      html,
-      fileName: `Invoice_${data.invoiceNumber}`,
-      directory: 'Documents',
-    };
-    const file = await RNHTMLtoPDF.convert(options);
-    return file.filePath || '';
+    const { uri } = await Print.printToFileAsync({ html });
+    return uri;
   }
 
   static async printInvoice(data: InvoiceData): Promise<void> {
     const html = this.buildHTML(data);
-    await RNPrint.print({ html });
+    await Print.printAsync({ html });
   }
 
   static async shareInvoice(data: InvoiceData): Promise<void> {
-    const filePath = await this.generatePDF(data);
-    await Share.open({
-      title: 'Share Invoice',
-      url: `file://${filePath}`,
-      type: 'application/pdf',
-    });
+    const uri = await this.generatePDF(data);
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Share Invoice',
+      });
+    }
   }
 }

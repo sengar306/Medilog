@@ -5,7 +5,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../redux/store';
 import { toggleThemeMode } from '../../redux/slices/authSlice';
 import apiClient from '../../api/apiClient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export const SettingsScreen: React.FC = () => {
   const dispatch = useDispatch();

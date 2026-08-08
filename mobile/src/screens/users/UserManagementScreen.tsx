@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, Alert, Modal, ScrollView } from 'react-native';
 import { Card, Button, TextInput, IconButton, Switch, Title, HelperText } from 'react-native-paper';
 import apiClient from '../../api/apiClient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface User {
   _id: string;

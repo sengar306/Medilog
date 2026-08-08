@@ -1,8 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// In Android emulator, 10.0.2.2 maps to host machine localhost
-export const BASE_URL = 'http://10.0.2.2:5000';
+// Production backend on Render
+export const BASE_URL = 'https://medilog-dza5.onrender.com';
 
 const apiClient = axios.create({
   baseURL: `${BASE_URL}`,

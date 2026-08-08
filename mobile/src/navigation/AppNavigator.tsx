@@ -4,7 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSelector } from 'react-redux';
 import { RootState } from '../redux/store';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Import Screens
 import SplashScreen from '../screens/auth/SplashScreen';

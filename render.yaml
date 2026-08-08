@@ -45,10 +45,11 @@ services:
       - key: FACEBOOK_REDIRECT_URI
         sync: false
 
-# ── Frontend: Angular Static Site ─────────────────────────────────────────
-staticSites:
-  - name: medilog-frontend
-    rootDir: frontend
-    buildCommand: npm install && NODE_OPTIONS=--max-old-space-size=400 npx ng build --configuration production --no-progress
-    staticPublishPath: dist/frontend/browser
-    plan: free
+
+# ── Frontend ───────────────────────────────────────────────────────────────
+# The Angular frontend is deployed separately on Netlify (free tier).
+# Netlify has 1GB build memory — sufficient for ng build --configuration production.
+# Netlify settings:
+#   Base directory:    frontend
+#   Build command:     ng build --configuration production
+#   Publish directory: dist/frontend/browser

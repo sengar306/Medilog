@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: medilog-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    nodeVersion: "18"
+
+    # Environment variables — set real values in the Render dashboard.
+    # Values marked sync: false are NOT auto-populated; you must enter them manually.
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: 10000         # Render assigns its own port via $PORT; this is a fallback default
+
+      - key: MONGO_URI
+        sync: false          # ← Paste your MongoDB Atlas connection string in Render dashboard
+
+      - key: JWT_SECRET
+        sync: false          # ← Set a strong random secret in Render dashboard
+
+      - key: GEMINI_API_KEY
+        sync: false
+
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+
+      - key: FACEBOOK_APP_ID
+        sync: false
+
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+
+      - key: FACEBOOK_REDIRECT_URI
+        sync: false

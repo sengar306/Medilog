@@ -25,6 +25,7 @@ lerna-debug.log*
 *.sqlite
 *.db
 backend/temp/
+backend/uploads/
 
 # Angular / Frontend build files
 /frontend/dist/

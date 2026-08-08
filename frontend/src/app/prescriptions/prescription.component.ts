@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, isDevMode } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
@@ -260,7 +260,7 @@ import { ApiService } from '../core/services/api.service';
               @if (viewingRx()?.imageUrl) {
                 <div class="rx-image-section">
                   <h4>Prescription Image</h4>
-                  <img [src]="'http://localhost:5000' + viewingRx()?.imageUrl" class="rx-view-img" alt="Prescription" />
+                  <img [src]="(isDevMode ? 'http://localhost:5000' : 'https://medilog-dza5.onrender.com') + viewingRx()?.imageUrl" class="rx-view-img" alt="Prescription" />
                 </div>
               }
             </div>

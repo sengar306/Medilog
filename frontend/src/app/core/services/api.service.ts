@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, signal, isDevMode } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
@@ -9,8 +9,11 @@ import { Observable, tap } from 'rxjs';
 export class ApiService {
   private http = inject(HttpClient);
   private router = inject(Router);
-  
-  private apiUrl = 'http://localhost:5000'; // Express Server URL
+
+  // Uses Render backend in production, localhost in development
+  private apiUrl = isDevMode()
+    ? 'http://localhost:5000'
+    : 'https://medilog-dza5.onrender.com';
 
   // User State
   currentUser = signal<any>(this.getUserFromLocalStorage());

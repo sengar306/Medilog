@@ -1,0 +1,12 @@
+# Netlify Configuration for MediLog Angular Frontend
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist/frontend/browser"
+
+# SPA Fallback Redirect for Angular Client-Side Routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

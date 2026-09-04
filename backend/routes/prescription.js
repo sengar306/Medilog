@@ -7,6 +7,7 @@ const Prescription = require('../models/Prescription');
 const Customer = require('../models/Customer');
 const { protect } = require('../middleware/auth');
 const { logAudit } = require('../utils/logger');
+const { getUserScope, verifyOwnership } = require('../utils/userScope');
 
 // Multer for prescription image uploads
 const uploadDir = path.join(__dirname, '../uploads/prescriptions');
@@ -37,7 +38,15 @@ const upload = multer({
 router.get('/', protect, async (req, res) => {
   try {
     const { customerId, status, from, to, search } = req.query;
+    const userScope = getUserScope(req);
     const query = {};
+
+    if (userScope.user) {
+      query.$or = [
+        { user: userScope.user },
+        { dispensedBy: userScope.user }
+      ];
+    }
 
     if (customerId) query.customer = customerId;
     if (status) query.status = status;
@@ -53,16 +62,23 @@ router.get('/', protect, async (req, res) => {
     }
 
     if (search) {
-      query.$or = [
+      const searchOr = [
         { patientName: { $regex: search, $options: 'i' } },
         { doctorName: { $regex: search, $options: 'i' } },
         { clinicName: { $regex: search, $options: 'i' } }
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchOr }];
+        delete query.$or;
+      } else {
+        query.$or = searchOr;
+      }
     }
 
     const prescriptions = await Prescription.find(query)
       .populate('customer', 'name phone')
-      .populate('dispensedBy', 'username')
+      .populate('dispensedBy', 'username email chemistName')
+      .populate('user', 'username email chemistName')
       .populate('sale', 'invoiceNumber totalAmount')
       .sort({ prescriptionDate: -1 });
 
@@ -80,11 +96,17 @@ router.get('/:id', protect, async (req, res) => {
   try {
     const prescription = await Prescription.findById(req.params.id)
       .populate('customer', 'name phone email address')
-      .populate('dispensedBy', 'username')
+      .populate('dispensedBy', 'username email chemistName')
+      .populate('user', 'username email chemistName')
       .populate('sale', 'invoiceNumber totalAmount saleDate paymentMode');
 
     if (!prescription) {
       return res.status(404).json({ message: 'Prescription not found' });
+    }
+
+    const isOwner = verifyOwnership(req, prescription, 'user') || verifyOwnership(req, prescription, 'dispensedBy');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this prescription record' });
     }
 
     res.json(prescription);
@@ -110,12 +132,12 @@ router.post('/', protect, upload.single('prescriptionImage'), async (req, res) =
       return res.status(400).json({ message: 'Patient name and Doctor name are required' });
     }
 
-    // Resolve or create customer
+    // Resolve or create customer for current user
     let resolvedCustomerId = customerId || null;
     if (!resolvedCustomerId && customerPhone) {
-      let customer = await Customer.findOne({ phone: customerPhone });
+      let customer = await Customer.findOne({ phone: customerPhone, user: req.user._id });
       if (!customer) {
-        customer = new Customer({ name: patientName, phone: customerPhone });
+        customer = new Customer({ name: patientName, phone: customerPhone, user: req.user._id });
         await customer.save();
       }
       resolvedCustomerId = customer._id;
@@ -133,6 +155,7 @@ router.post('/', protect, upload.single('prescriptionImage'), async (req, res) =
 
     const prescription = new Prescription({
       customer: resolvedCustomerId,
+      user: req.user._id,
       patientName: patientName.trim(),
       patientAge: patientAge ? parseInt(patientAge) : undefined,
       patientGender,
@@ -174,25 +197,22 @@ router.post('/', protect, upload.single('prescriptionImage'), async (req, res) =
 // @access  Private
 router.patch('/:id', protect, async (req, res) => {
   try {
-    const { status, saleId, notes } = req.body;
-
-    const updateData = {};
-    if (status) updateData.status = status;
-    if (saleId) updateData.sale = saleId;
-    if (notes !== undefined) updateData.notes = notes;
-
-    const updated = await Prescription.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateData },
-      { new: true }
-    )
-      .populate('customer', 'name phone')
-      .populate('dispensedBy', 'username')
-      .populate('sale', 'invoiceNumber totalAmount');
-
-    if (!updated) {
+    const prescription = await Prescription.findById(req.params.id);
+    if (!prescription) {
       return res.status(404).json({ message: 'Prescription not found' });
     }
+
+    const isOwner = verifyOwnership(req, prescription, 'user') || verifyOwnership(req, prescription, 'dispensedBy');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Access Denied: You cannot modify another user\'s prescription' });
+    }
+
+    const { status, saleId, notes } = req.body;
+    if (status) prescription.status = status;
+    if (saleId) prescription.sale = saleId;
+    if (notes !== undefined) prescription.notes = notes;
+
+    await prescription.save();
 
     await logAudit(
       'Update Prescription',
@@ -201,6 +221,11 @@ router.patch('/:id', protect, async (req, res) => {
       req.user._id,
       req
     );
+
+    const updated = await Prescription.findById(prescription._id)
+      .populate('customer', 'name phone')
+      .populate('dispensedBy', 'username')
+      .populate('sale', 'invoiceNumber totalAmount');
 
     res.json(updated);
   } catch (error) {
@@ -211,12 +236,19 @@ router.patch('/:id', protect, async (req, res) => {
 
 // @desc    Delete a prescription
 // @route   DELETE /prescriptions/:id
-// @access  Private (Admin only)
+// @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    if (req.user.role.name !== 'Admin') {
-      return res.status(403).json({ message: 'Access denied: Admin only' });
+    const prescription = await Prescription.findById(req.params.id);
+    if (!prescription) {
+      return res.status(404).json({ message: 'Prescription not found' });
     }
+
+    const isOwner = verifyOwnership(req, prescription, 'user') || verifyOwnership(req, prescription, 'dispensedBy');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Access Denied: You cannot delete another user\'s prescription' });
+    }
+
     await Prescription.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Prescription deleted' });
   } catch (error) {

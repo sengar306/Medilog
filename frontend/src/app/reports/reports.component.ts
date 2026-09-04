@@ -25,8 +25,19 @@ import { ApiService } from '../core/services/api.service';
         }
       </div>
 
-      <!-- Date Range Filter -->
+      <!-- Date Range & Chemist Store Filter -->
       <div class="glass-panel filter-bar">
+        @if (isAdmin()) {
+          <div class="filter-group">
+            <label>Chemist Store</label>
+            <select class="form-control" [(ngModel)]="selectedUserId" (change)="loadCurrentTab()">
+              <option value="">All Chemists (Overall System)</option>
+              @for (u of users(); track u._id) {
+                <option [value]="u._id">{{ u.chemistName || u.username }} ({{ u.email }})</option>
+              }
+            </select>
+          </div>
+        }
         <div class="filter-group">
           <label>From Date</label>
           <input type="date" class="form-control" [(ngModel)]="fromDate" (change)="loadCurrentTab()" id="report-from-date" />
@@ -108,7 +119,8 @@ import { ApiService } from '../core/services/api.service';
                     <th>GST</th>
                     <th>Discount</th>
                     <th>Net</th>
-                    <th>Cashier</th>
+                    <th>Cashier / Store</th>
+                    <th class="no-print">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,10 +134,25 @@ import { ApiService } from '../core/services/api.service';
                       <td>₹{{ sale.gstTotal | number:'1.2-2' }}</td>
                       <td class="text-warning">₹{{ sale.discountAmount | number:'1.2-2' }}</td>
                       <td><strong class="text-success">₹{{ sale.totalAmount | number:'1.2-2' }}</strong></td>
-                      <td><code>{{ sale.cashier?.username || '—' }}</code></td>
+                      <td><code>{{ sale.cashier?.chemistName || sale.cashier?.username || '—' }}</code></td>
+                      <td class="no-print">
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                          <a [href]="apiService.getSalePdfUrl(sale._id)" target="_blank" class="btn btn-primary-glass" style="padding: 4px 8px; font-size: 0.78rem;" title="View PDF Bill">
+                            <i class="bi bi-file-earmark-pdf"></i> View PDF
+                          </a>
+                          <button (click)="downloadPdf(sale._id)" class="btn btn-glass" style="padding: 4px 8px; font-size: 0.78rem;" title="Download PDF Bill">
+                            <i class="bi bi-download"></i>
+                          </button>
+                          @if (sale.customer?.phone || sale.customerPhone) {
+                            <button (click)="sendWhatsAppBill(sale)" class="btn btn-primary-glass success" style="padding: 4px 8px; font-size: 0.78rem;" title="Resend Bill on WhatsApp">
+                              <i class="bi bi-whatsapp"></i>
+                            </button>
+                          }
+                        </div>
+                      </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="9" class="empty-row">No sales found for selected period</td></tr>
+                    <tr><td colspan="10" class="empty-row">No sales found for selected period</td></tr>
                   }
                 </tbody>
               </table>
@@ -457,11 +484,13 @@ import { ApiService } from '../core/services/api.service';
   `]
 })
 export class ReportsComponent implements OnInit {
-  private apiService = inject(ApiService);
+  public apiService = inject(ApiService);
 
   activeTab = 'sales';
   fromDate = '';
   toDate = '';
+  selectedUserId = '';
+  users = signal<any[]>([]);
   loading = signal(false);
 
   salesData = signal<any>({ summary: { totalSales: 0, totalRevenue: 0, totalGst: 0, totalDiscount: 0, paymentBreakdown: {} }, sales: [] });
@@ -478,8 +507,31 @@ export class ReportsComponent implements OnInit {
     { id: 'gst',          label: 'GST Summary',     icon: 'bi-percent' },
   ];
 
+  waConfig = { businessName: 'MediLog Pharmacy' };
+
   ngOnInit(): void {
+    if (this.isAdmin()) {
+      this.apiService.getUsers().subscribe({
+        next: (data) => this.users.set(data),
+        error: (err) => console.error('Failed to fetch users list', err)
+      });
+    }
     this.loadCurrentTab();
+    this.loadWaConfig();
+  }
+
+  isAdmin(): boolean {
+    return this.apiService.hasRole(['Admin']);
+  }
+
+  loadWaConfig(): void {
+    this.apiService.getWhatsAppConfig().subscribe({
+      next: (res) => {
+        if (res && res.data) {
+          this.waConfig = res.data;
+        }
+      }
+    });
   }
 
   switchTab(id: string): void {
@@ -491,28 +543,43 @@ export class ReportsComponent implements OnInit {
     this.loading.set(true);
     const f = this.fromDate || undefined;
     const t = this.toDate || undefined;
+    const u = this.selectedUserId || undefined;
 
     if (this.activeTab === 'sales') {
-      this.apiService.getSalesSummary(f, t).subscribe({
+      this.apiService.getSalesSummary(f, t, u).subscribe({
         next: (d) => { this.salesData.set(d); this.loading.set(false); },
         error: () => this.loading.set(false)
       });
     } else if (this.activeTab === 'top-medicines') {
-      this.apiService.getTopMedicines(15, f, t).subscribe({
+      this.apiService.getTopMedicines(15, f, t, u).subscribe({
         next: (d) => { this.topMeds.set(d.topMedicines || []); this.loading.set(false); },
         error: () => this.loading.set(false)
       });
     } else if (this.activeTab === 'profit') {
-      this.apiService.getProfitAnalysis(f, t).subscribe({
+      this.apiService.getProfitAnalysis(f, t, u).subscribe({
         next: (d) => { this.profitData.set(d); this.loading.set(false); },
         error: () => this.loading.set(false)
       });
     } else if (this.activeTab === 'gst') {
-      this.apiService.getGstSummary(f, t).subscribe({
+      this.apiService.getGstSummary(f, t, u).subscribe({
         next: (d) => { this.gstData.set(d); this.loading.set(false); },
         error: () => this.loading.set(false)
       });
     }
+  }
+
+  downloadPdf(saleId: string): void {
+    this.apiService.downloadSalePdf(saleId).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Invoice-${saleId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => console.error('Failed to download sale PDF', err)
+    });
   }
 
   clearFilters(): void {
@@ -567,5 +634,28 @@ export class ReportsComponent implements OnInit {
     a.download = `medilog-${this.activeTab}-report-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  sendWhatsAppBill(sale: any): void {
+    const customerPhone = sale.customer?.phone || sale.customerPhone;
+    if (!customerPhone) {
+      alert('This transaction does not have a customer phone number linked.');
+      return;
+    }
+    
+    const cleanPhone = customerPhone.replace(/[^0-9]/g, '');
+    const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    
+    const pdfUrl = `http://localhost:5000/api/v1/invoices/${sale.invoiceNumber}/pdf`;
+    const text = `Hello ${sale.customer?.name || 'Customer'},\n\nHere is your invoice *#${sale.invoiceNumber}* from *${this.waConfig.businessName || 'MediLog Pharmacy'}*.\n\n*Bill Summary*:\n- Subtotal: INR ${sale.subTotal.toFixed(2)}\n- GST Taxes: INR ${sale.gstTotal.toFixed(2)}\n- Discount: INR ${sale.discountAmount.toFixed(2)}\n- Grand Total: *INR ${sale.totalAmount.toFixed(2)}*\n\n📄 *Download PDF Invoice:* ${pdfUrl}\n\nGet well soon!`;
+    const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+
+    this.apiService.sendExistingBillWhatsApp(sale._id).subscribe({
+      next: () => {},
+      error: (err) => {
+        console.error('Quiet background PDF dispatch failed:', err);
+      }
+    });
   }
 }

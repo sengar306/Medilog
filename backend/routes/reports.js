@@ -10,12 +10,20 @@ const StockTransaction = require('../models/StockTransaction');
 const AuditLog = require('../models/AuditLog');
 const Customer = require('../models/Customer');
 const { protect } = require('../middleware/auth');
+const { getUserScope, verifyOwnership } = require('../utils/userScope');
+const mongoose = require('mongoose');
 
 // @desc    Get dashboard metrics
 // @route   GET /api/reports/dashboard
 // @access  Private
 router.get('/dashboard', protect, async (req, res) => {
   try {
+    const userScope = getUserScope(req);
+    const userMatch = {};
+    if (userScope.user) {
+      userMatch.user = new mongoose.Types.ObjectId(userScope.user);
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -23,27 +31,49 @@ router.get('/dashboard', protect, async (req, res) => {
     nearExpiryThreshold.setDate(today.getDate() + 90);
 
     // 1. Total sales summary (all time & today)
-    const salesAllTime = await Sale.aggregate([{ $group: { _id: null, total: { $sum: '$totalAmount' } } }]);
+    const salesAllTimeMatch = { ...userMatch };
+    const salesTodayMatch = { ...userMatch, saleDate: { $gte: today } };
+    
+    // In sale model, user could be stored as 'user' or 'cashier'
+    if (userScope.user) {
+      salesAllTimeMatch.$or = [
+        { user: userMatch.user },
+        { cashier: userMatch.user }
+      ];
+      delete salesAllTimeMatch.user;
+
+      salesTodayMatch.$or = [
+        { user: userMatch.user },
+        { cashier: userMatch.user }
+      ];
+      delete salesTodayMatch.user;
+    }
+
+    const salesAllTime = await Sale.aggregate([
+      { $match: salesAllTimeMatch },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+
     const salesToday = await Sale.aggregate([
-      { $match: { saleDate: { $gte: today } } },
+      { $match: salesTodayMatch },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
 
     // 2. Total purchases summary
-    const purchasesAllTime = await Purchase.aggregate([{ $group: { _id: null, total: { $sum: '$totalAmount' } } }]);
+    const purchasesAllTime = await Purchase.aggregate([
+      { $match: userMatch },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
 
     // 3. Count medicines
-    const medicineCount = await Medicine.countDocuments({});
+    const medicineCount = await Medicine.countDocuments(userScope);
 
     // 4. Low stock check (stock < minStockLevel)
-    const medicines = await Medicine.find({});
+    const medicines = await Medicine.find(userScope);
+    const batchAggMatch = { ...userMatch, quantity: { $gt: 0 }, expiryDate: { $gte: today } };
+
     const batchAgg = await InventoryBatch.aggregate([
-      {
-        $match: {
-          quantity: { $gt: 0 },
-          expiryDate: { $gte: today }
-        }
-      },
+      { $match: batchAggMatch },
       {
         $group: {
           _id: '$medicine',
@@ -63,12 +93,14 @@ router.get('/dashboard', protect, async (req, res) => {
 
     // 5. Near expiry count
     const nearExpiryCount = await InventoryBatch.countDocuments({
+      ...userScope,
       quantity: { $gt: 0 },
       expiryDate: { $gte: today, $lte: nearExpiryThreshold }
     });
 
     // 6. Expired count
     const expiredCount = await InventoryBatch.countDocuments({
+      ...userScope,
       quantity: { $gt: 0 },
       expiryDate: { $lt: today }
     });
@@ -79,8 +111,17 @@ router.get('/dashboard', protect, async (req, res) => {
     sixMonthsAgo.setDate(1);
     sixMonthsAgo.setHours(0, 0, 0, 0);
 
+    const monthlySalesMatch = { ...userMatch, saleDate: { $gte: sixMonthsAgo } };
+    if (userScope.user) {
+      monthlySalesMatch.$or = [
+        { user: userMatch.user },
+        { cashier: userMatch.user }
+      ];
+      delete monthlySalesMatch.user;
+    }
+
     const monthlySales = await Sale.aggregate([
-      { $match: { saleDate: { $gte: sixMonthsAgo } } },
+      { $match: monthlySalesMatch },
       {
         $group: {
           _id: {
@@ -94,7 +135,7 @@ router.get('/dashboard', protect, async (req, res) => {
     ]);
 
     const monthlyPurchases = await Purchase.aggregate([
-      { $match: { invoiceDate: { $gte: sixMonthsAgo } } },
+      { $match: { ...userMatch, invoiceDate: { $gte: sixMonthsAgo } } },
       {
         $group: {
           _id: {
@@ -108,10 +149,24 @@ router.get('/dashboard', protect, async (req, res) => {
     ]);
 
     // 8. Recent Sales
-    const recentSales = await Sale.find({}).populate('customer').populate('cashier', 'username').sort({ createdAt: -1 }).limit(5);
+    const recentSalesQuery = {};
+    if (userScope.user) {
+      recentSalesQuery.$or = [
+        { user: userScope.user },
+        { cashier: userScope.user }
+      ];
+    }
+    const recentSales = await Sale.find(recentSalesQuery)
+      .populate('customer')
+      .populate('cashier', 'username email chemistName')
+      .sort({ createdAt: -1 })
+      .limit(5);
 
     // 9. Recent Activity / Audit Logs
-    const recentActivity = await AuditLog.find({}).populate('user', 'username').sort({ createdAt: -1 }).limit(5);
+    const recentActivity = await AuditLog.find(userScope)
+      .populate('user', 'username email chemistName')
+      .sort({ createdAt: -1 })
+      .limit(5);
 
     res.json({
       summary: {
@@ -141,10 +196,10 @@ router.get('/dashboard', protect, async (req, res) => {
 // @access  Private (Admin only)
 router.get('/audit-logs', protect, async (req, res) => {
   try {
-    if (req.user.role.name !== 'Admin') {
+    if (req.user.role.name !== 'Admin' && req.user.role.name !== 'Super Admin') {
       return res.status(403).json({ message: 'Access denied: Admin only' });
     }
-    const logs = await AuditLog.find({}).populate('user', 'username').sort({ createdAt: -1 }).limit(100);
+    const logs = await AuditLog.find({}).populate('user', 'username email chemistName').sort({ createdAt: -1 }).limit(100);
     res.json(logs);
   } catch (error) {
     console.error(error);
@@ -158,7 +213,16 @@ router.get('/audit-logs', protect, async (req, res) => {
 router.get('/sales-summary', protect, async (req, res) => {
   try {
     const { from, to } = req.query;
+    const userScope = getUserScope(req);
     const matchQuery = {};
+
+    if (userScope.user) {
+      matchQuery.$or = [
+        { user: userScope.user },
+        { cashier: userScope.user }
+      ];
+    }
+
     if (from || to) {
       matchQuery.saleDate = {};
       if (from) matchQuery.saleDate.$gte = new Date(from);
@@ -171,7 +235,7 @@ router.get('/sales-summary', protect, async (req, res) => {
 
     const sales = await Sale.find(matchQuery)
       .populate('customer', 'name phone')
-      .populate('cashier', 'username')
+      .populate('cashier', 'username email chemistName')
       .sort({ saleDate: -1 });
 
     const totalRevenue = sales.reduce((s, sale) => s + sale.totalAmount, 0);
@@ -207,7 +271,13 @@ router.get('/sales-summary', protect, async (req, res) => {
 router.get('/top-medicines', protect, async (req, res) => {
   try {
     const { limit = 10, from, to } = req.query;
+    const userScope = getUserScope(req);
     const matchQuery = {};
+
+    if (userScope.user) {
+      matchQuery.user = new mongoose.Types.ObjectId(userScope.user);
+    }
+
     if (from || to) {
       matchQuery.createdAt = {};
       if (from) matchQuery.createdAt.$gte = new Date(from);
@@ -249,13 +319,15 @@ router.get('/top-medicines', protect, async (req, res) => {
   }
 });
 
-// @desc    Profit margin analysis (MRP vs purchase rate from batch)
+// @desc    Profit margin analysis
 // @route   GET /reports/profit-analysis?from=&to=
 // @access  Private
 router.get('/profit-analysis', protect, async (req, res) => {
   try {
     const { from, to } = req.query;
-    const matchQuery = {};
+    const userScope = getUserScope(req);
+    const matchQuery = { ...userScope };
+
     if (from || to) {
       matchQuery.createdAt = {};
       if (from) matchQuery.createdAt.$gte = new Date(from);
@@ -268,13 +340,15 @@ router.get('/profit-analysis', protect, async (req, res) => {
 
     const saleItems = await SaleItem.find(matchQuery).populate('medicine', 'name genericName category');
 
-    // Join with inventory batches to get purchase rate
     const profitItems = [];
     for (const item of saleItems) {
-      const batch = await InventoryBatch.findOne({
+      const batchQuery = {
         medicine: item.medicine?._id,
         batchNumber: item.batchNumber
-      });
+      };
+      if (userScope.user) batchQuery.user = userScope.user;
+
+      const batch = await InventoryBatch.findOne(batchQuery);
       const purchaseRate = batch ? batch.purchaseRate : 0;
       const costPrice = purchaseRate * item.quantity;
       const salePrice = item.mrp * item.quantity;
@@ -314,13 +388,19 @@ router.get('/profit-analysis', protect, async (req, res) => {
   }
 });
 
-// @desc    GST summary report (CGST/SGST breakdown)
+// @desc    GST summary report
 // @route   GET /reports/gst-summary?from=&to=
 // @access  Private
 router.get('/gst-summary', protect, async (req, res) => {
   try {
     const { from, to } = req.query;
+    const userScope = getUserScope(req);
     const matchQuery = {};
+
+    if (userScope.user) {
+      matchQuery.user = new mongoose.Types.ObjectId(userScope.user);
+    }
+
     if (from || to) {
       matchQuery.createdAt = {};
       if (from) matchQuery.createdAt.$gte = new Date(from);
@@ -379,8 +459,12 @@ router.get('/customer-history/:customerId', protect, async (req, res) => {
     const customer = await Customer.findById(req.params.customerId);
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
+    if (!verifyOwnership(req, customer)) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this customer record' });
+    }
+
     const sales = await Sale.find({ customer: req.params.customerId })
-      .populate('cashier', 'username')
+      .populate('cashier', 'username email chemistName')
       .sort({ saleDate: -1 });
 
     const salesWithItems = await Promise.all(sales.map(async (sale) => {

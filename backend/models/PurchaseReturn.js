@@ -43,10 +43,13 @@ const PurchaseReturnSchema = new mongoose.Schema({
     ref: 'Supplier',
     required: true
   },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   returnNumber: {
     type: String,
     required: true,
-    unique: true,
     trim: true
   },
   returnDate: {
@@ -81,5 +84,7 @@ const PurchaseReturnSchema = new mongoose.Schema({
     type: String
   }
 }, { timestamps: true });
+
+PurchaseReturnSchema.index({ returnNumber: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('PurchaseReturn', PurchaseReturnSchema);

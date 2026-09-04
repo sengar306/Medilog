@@ -233,11 +233,19 @@ interface CartItem {
             <div class="receipt-footer mt-4">
               <p><i class="bi bi-shield-check-fill"></i> Thank you! Get well soon.</p>
               <div class="footer-buttons mt-3 no-print" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                <button (click)="printReceipt()" class="btn btn-glass"><i class="bi bi-printer"></i> Print Invoice</button>
+                <a [href]="apiService.getSalePdfUrl(receiptData().sale._id)" target="_blank" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px; text-decoration: none; border-radius: 8px; padding: 10px 16px; font-weight: bold;">
+                  <i class="bi bi-file-earmark-pdf"></i> View Invoice PDF
+                </a>
+                <button (click)="downloadPdf(receiptData().sale._id)" class="btn btn-glass" style="display: flex; align-items: center; gap: 6px;">
+                  <i class="bi bi-download"></i> Download PDF
+                </button>
+                <button (click)="printReceipt()" class="btn btn-glass"><i class="bi bi-printer"></i> Thermal Print</button>
                 @if (customerPhone) {
-                  <span class="badge badge-success mt-2 p-2" style="font-size: 0.85rem;"><i class="bi bi-whatsapp"></i> Bill automatically sent to WhatsApp!</span>
+                  <button (click)="openDirectWhatsApp()" class="btn" style="background: #16a34a; color: white; border: none; border-radius: 8px; font-weight: bold; padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <i class="bi bi-whatsapp"></i> Open WhatsApp Web
+                  </button>
                 }
-                <button (click)="resetPOS()" class="btn btn-primary"><i class="bi bi-plus-circle"></i> New POS Bill</button>
+                <button (click)="resetPOS()" class="btn btn-primary-glass"><i class="bi bi-plus-circle"></i> New POS Bill</button>
               </div>
             </div>
           </div>
@@ -392,10 +400,28 @@ interface CartItem {
       justify-content: center;
       gap: 12px;
     }
+    @media print {
+      body * { visibility: hidden; }
+      .receipt-layout, .receipt-card, .receipt-card * { visibility: visible; }
+      .receipt-layout { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
+      .receipt-card {
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .no-print { display: none !important; }
+      .logo-icon { color: #8257e5 !important; }
+      .receipt-table th { background-color: #8257e5 !important; color: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .receipt-table td { border-bottom: 1px solid #ddd !important; color: #000000 !important; }
+    }
   `]
 })
 export class BillingComponent implements OnInit {
-  private apiService = inject(ApiService);
+  public apiService = inject(ApiService);
 
   medicines = signal<any[]>([]);
   inventory = signal<any[]>([]);
@@ -624,6 +650,33 @@ export class BillingComponent implements OnInit {
 
   printReceipt(): void {
     window.print();
+  }
+
+  downloadPdf(saleId: string): void {
+    this.apiService.downloadSalePdf(saleId).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Invoice-${saleId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => console.error('Failed to download sale PDF', err)
+    });
+  }
+
+  openDirectWhatsApp(): void {
+    const receipt = this.receiptData();
+    if (!receipt) return;
+    
+    const cleanPhone = this.customerPhone.replace(/[^0-9]/g, '');
+    const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    
+    const pdfUrl = `http://localhost:5000/api/v1/invoices/${receipt.sale.invoiceNumber}/pdf`;
+    const text = `Hello ${this.customerName || 'Customer'},\n\nYour invoice *#${receipt.sale.invoiceNumber}* from *${this.waConfig().businessName || 'MediLog Pharmacy'}* has been generated.\n\n*Bill Summary*:\n- Subtotal: INR ${receipt.sale.subTotal.toFixed(2)}\n- GST Taxes: INR ${receipt.sale.gstTotal.toFixed(2)}\n- Discount: INR ${receipt.sale.discountAmount.toFixed(2)}\n- Grand Total: *INR ${receipt.sale.totalAmount.toFixed(2)}*\n\n📄 *Download PDF Invoice:* ${pdfUrl}\n\nThank you!`;
+    const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   }
 
 

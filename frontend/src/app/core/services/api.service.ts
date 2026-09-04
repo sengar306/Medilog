@@ -62,20 +62,38 @@ export class ApiService {
 
   hasRole(roles: string[]): boolean {
     const user = this.currentUser();
-    return user && roles.includes(user.role);
+    if (!user) return false;
+    const rName = typeof user.role === 'string' ? user.role : (user.role?.name || 'User');
+    if (rName === 'Admin' || rName === 'Super Admin') return true;
+    if (roles.includes(rName)) return true;
+    if (roles.includes('User') && (rName === 'Chemist' || rName === 'User')) return true;
+    if (roles.includes('Chemist') && (rName === 'Chemist' || rName === 'User')) return true;
+    return false;
   }
 
   // --- Medicines & Racks API ---
-  getMedicines(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/medicines`, { headers: this.getHeaders() });
+  getMedicines(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/medicines`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   createMedicine(data: any): Observable<any> {
     return this.http.post<any>(`${this.apiUrl}/medicines`, data, { headers: this.getHeaders() });
   }
 
-  getRacks(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/medicines/racks`, { headers: this.getHeaders() });
+  updateMedicine(id: string, data: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/medicines/${id}`, data, { headers: this.getHeaders() });
+  }
+
+  deleteMedicine(id: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/medicines/${id}`, { headers: this.getHeaders() });
+  }
+
+  getRacks(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/medicines/racks`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   createRack(data: any): Observable<any> {
@@ -83,8 +101,10 @@ export class ApiService {
   }
 
   // --- Suppliers API ---
-  getSuppliers(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/suppliers`, { headers: this.getHeaders() });
+  getSuppliers(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/suppliers`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   createSupplier(data: any): Observable<any> {
@@ -92,29 +112,38 @@ export class ApiService {
   }
 
   // --- Inventory API ---
-  getInventory(status?: string, medicineId?: string): Observable<any[]> {
+  getInventory(status?: string, medicineId?: string, search?: string, userId?: string): Observable<any[]> {
     let url = `${this.apiUrl}/inventory`;
     const params: string[] = [];
     if (status) params.push(`status=${status}`);
     if (medicineId) params.push(`medicineId=${medicineId}`);
+    if (search) params.push(`search=${encodeURIComponent(search)}`);
+    if (userId) params.push(`userId=${userId}`);
     if (params.length > 0) url += `?${params.join('&')}`;
     
     return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
-  getLowStock(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/inventory/low-stock`, { headers: this.getHeaders() });
+  getLowStock(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/inventory/low-stock`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
-  getStockLedger(medicineId?: string): Observable<any[]> {
+  getStockLedger(medicineId?: string, userId?: string): Observable<any[]> {
     let url = `${this.apiUrl}/inventory/ledger`;
-    if (medicineId) url += `?medicineId=${medicineId}`;
+    const params: string[] = [];
+    if (medicineId) params.push(`medicineId=${medicineId}`);
+    if (userId) params.push(`userId=${userId}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
     return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   // --- Purchases API ---
-  getPurchases(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/purchase/list`, { headers: this.getHeaders() });
+  getPurchases(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/purchase/list`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   getPurchaseDetails(id: string): Observable<any> {
@@ -126,8 +155,10 @@ export class ApiService {
   }
 
   // --- Sales API ---
-  getSales(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/sales/list`, { headers: this.getHeaders() });
+  getSales(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/sales/list`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   getSaleDetails(id: string): Observable<any> {
@@ -143,7 +174,6 @@ export class ApiService {
     const formData = new FormData();
     formData.append('invoice', file);
     
-    // Custom headers without Content-Type so boundary is set automatically by browser
     let headers = new HttpHeaders();
     const token = this.token();
     if (token) {
@@ -162,8 +192,10 @@ export class ApiService {
   }
 
   // --- Reports API ---
-  getDashboardMetrics(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/reports/dashboard`, { headers: this.getHeaders() });
+  getDashboardMetrics(userId?: string): Observable<any> {
+    let url = `${this.apiUrl}/reports/dashboard`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any>(url, { headers: this.getHeaders() });
   }
 
   getAuditLogs(): Observable<any[]> {
@@ -171,8 +203,10 @@ export class ApiService {
   }
 
   // --- Customers API ---
-  getCustomers(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/customers`, { headers: this.getHeaders() });
+  getCustomers(userId?: string): Observable<any[]> {
+    let url = `${this.apiUrl}/customers`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any[]>(url, { headers: this.getHeaders() });
   }
 
   createCustomer(data: any): Observable<any> {
@@ -205,34 +239,42 @@ export class ApiService {
     return this.http.post<any>(`${this.apiUrl}/whatsapp/send-invoice`, payload, { headers: this.getHeaders() });
   }
 
+  sendExistingBillWhatsApp(saleId: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/whatsapp/send-existing-bill`, { saleId }, { headers: this.getHeaders() });
+  }
+
   // --- Advanced Reports API ---
-  getSalesSummary(from?: string, to?: string): Observable<any> {
+  getSalesSummary(from?: string, to?: string, userId?: string): Observable<any> {
     const params: string[] = [];
     if (from) params.push(`from=${from}`);
     if (to) params.push(`to=${to}`);
+    if (userId) params.push(`userId=${userId}`);
     const qs = params.length > 0 ? `?${params.join('&')}` : '';
     return this.http.get<any>(`${this.apiUrl}/reports/sales-summary${qs}`, { headers: this.getHeaders() });
   }
 
-  getTopMedicines(limit = 10, from?: string, to?: string): Observable<any> {
+  getTopMedicines(limit = 10, from?: string, to?: string, userId?: string): Observable<any> {
     const params: string[] = [`limit=${limit}`];
     if (from) params.push(`from=${from}`);
     if (to) params.push(`to=${to}`);
+    if (userId) params.push(`userId=${userId}`);
     return this.http.get<any>(`${this.apiUrl}/reports/top-medicines?${params.join('&')}`, { headers: this.getHeaders() });
   }
 
-  getProfitAnalysis(from?: string, to?: string): Observable<any> {
+  getProfitAnalysis(from?: string, to?: string, userId?: string): Observable<any> {
     const params: string[] = [];
     if (from) params.push(`from=${from}`);
     if (to) params.push(`to=${to}`);
+    if (userId) params.push(`userId=${userId}`);
     const qs = params.length > 0 ? `?${params.join('&')}` : '';
     return this.http.get<any>(`${this.apiUrl}/reports/profit-analysis${qs}`, { headers: this.getHeaders() });
   }
 
-  getGstSummary(from?: string, to?: string): Observable<any> {
+  getGstSummary(from?: string, to?: string, userId?: string): Observable<any> {
     const params: string[] = [];
     if (from) params.push(`from=${from}`);
     if (to) params.push(`to=${to}`);
+    if (userId) params.push(`userId=${userId}`);
     const qs = params.length > 0 ? `?${params.join('&')}` : '';
     return this.http.get<any>(`${this.apiUrl}/reports/gst-summary${qs}`, { headers: this.getHeaders() });
   }
@@ -249,6 +291,7 @@ export class ApiService {
     if (filters?.from) params.push(`from=${filters.from}`);
     if (filters?.to) params.push(`to=${filters.to}`);
     if (filters?.search) params.push(`search=${encodeURIComponent(filters.search)}`);
+    if (filters?.userId) params.push(`userId=${filters.userId}`);
     const qs = params.length > 0 ? `?${params.join('&')}` : '';
     return this.http.get<any>(`${this.apiUrl}/prescriptions${qs}`, { headers: this.getHeaders() });
   }
@@ -273,8 +316,10 @@ export class ApiService {
   }
 
   // --- Notifications API ---
-  getActiveNotifications(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/notifications/active`, { headers: this.getHeaders() });
+  getActiveNotifications(userId?: string): Observable<any> {
+    let url = `${this.apiUrl}/notifications/active`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any>(url, { headers: this.getHeaders() });
   }
 
   dismissNotification(id: string): Observable<any> {
@@ -286,8 +331,10 @@ export class ApiService {
     return this.http.get<any>(`${this.apiUrl}/loyalty/${customerId}`, { headers: this.getHeaders() });
   }
 
-  getLoyaltyLeaderboard(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/loyalty/top/leaderboard`, { headers: this.getHeaders() });
+  getLoyaltyLeaderboard(userId?: string): Observable<any> {
+    let url = `${this.apiUrl}/loyalty/top/leaderboard`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any>(url, { headers: this.getHeaders() });
   }
 
   adjustLoyaltyPoints(customerId: string, points: number, reason: string): Observable<any> {
@@ -295,8 +342,10 @@ export class ApiService {
   }
 
   // --- Purchase Returns API ---
-  getPurchaseReturns(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/purchase-returns`, { headers: this.getHeaders() });
+  getPurchaseReturns(userId?: string): Observable<any> {
+    let url = `${this.apiUrl}/purchase-returns`;
+    if (userId) url += `?userId=${userId}`;
+    return this.http.get<any>(url, { headers: this.getHeaders() });
   }
 
   getPurchaseReturn(id: string): Observable<any> {
@@ -309,6 +358,27 @@ export class ApiService {
 
   updatePurchaseReturnStatus(id: string, status: string): Observable<any> {
     return this.http.patch<any>(`${this.apiUrl}/purchase-returns/${id}/status`, { status }, { headers: this.getHeaders() });
+  }
+
+  // --- Medicine Transfers API ---
+  getTransfers(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/transfers`, { headers: this.getHeaders() });
+  }
+
+  createTransfer(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/transfers`, data, { headers: this.getHeaders() });
+  }
+
+  acceptTransfer(id: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/transfers/${id}/accept`, {}, { headers: this.getHeaders() });
+  }
+
+  rejectTransfer(id: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/transfers/${id}/reject`, {}, { headers: this.getHeaders() });
+  }
+
+  cancelTransfer(id: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/transfers/${id}/cancel`, {}, { headers: this.getHeaders() });
   }
 
   // --- Users API ---
@@ -330,5 +400,41 @@ export class ApiService {
 
   resetUserPassword(id: string, data: any): Observable<any> {
     return this.http.put<any>(`${this.apiUrl}/users/${id}/reset-password`, data, { headers: this.getHeaders() });
+  }
+
+  // --- POS Bill & Chemist Profile API ---
+  uploadLogo(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('logo', file);
+    let headers = new HttpHeaders();
+    const token = this.token();
+    if (token) headers = headers.set('Authorization', `Bearer ${token}`);
+    return this.http.post<any>(`${this.apiUrl}/whatsapp/logo`, formData, { headers });
+  }
+
+  getSalePdfUrl(saleId: string): string {
+    const t = this.token();
+    const tokenQs = t ? `?token=${encodeURIComponent(t)}` : '';
+    return `${this.apiUrl}/sales/${saleId}/pdf${tokenQs}`;
+  }
+
+  downloadSalePdf(saleId: string): Observable<Blob> {
+    let headers = new HttpHeaders();
+    const token = this.token();
+    if (token) headers = headers.set('Authorization', `Bearer ${token}`);
+    return this.http.get(`${this.apiUrl}/sales/${saleId}/download`, {
+      headers,
+      responseType: 'blob'
+    });
+  }
+
+  getSalePdfBlob(saleId: string): Observable<Blob> {
+    let headers = new HttpHeaders();
+    const token = this.token();
+    if (token) headers = headers.set('Authorization', `Bearer ${token}`);
+    return this.http.get(`${this.apiUrl}/sales/${saleId}/pdf`, {
+      headers,
+      responseType: 'blob'
+    });
   }
 }

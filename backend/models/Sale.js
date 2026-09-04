@@ -5,10 +5,13 @@ const SaleSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Customer',
   },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
   invoiceNumber: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
   },
   saleDate: {
@@ -47,5 +50,7 @@ const SaleSchema = new mongoose.Schema({
     required: true,
   }
 }, { timestamps: true });
+
+SaleSchema.index({ invoiceNumber: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('Sale', SaleSchema);

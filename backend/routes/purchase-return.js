@@ -6,16 +6,27 @@ const InventoryBatch = require('../models/InventoryBatch');
 const StockTransaction = require('../models/StockTransaction');
 const { protect } = require('../middleware/auth');
 const { logAudit } = require('../utils/logger');
+const { getUserScope, verifyOwnership } = require('../utils/userScope');
 
 // @desc    Get all purchase returns
 // @route   GET /purchase-returns
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const returns = await PurchaseReturn.find({})
+    const userScope = getUserScope(req);
+    let query = {};
+    if (userScope.user) {
+      query.$or = [
+        { user: userScope.user },
+        { processedBy: userScope.user }
+      ];
+    }
+
+    const returns = await PurchaseReturn.find(query)
       .populate('purchase', 'invoiceNumber invoiceDate')
       .populate('supplier', 'name contactPerson phone')
-      .populate('processedBy', 'username')
+      .populate('processedBy', 'username email chemistName')
+      .populate('user', 'username email chemistName')
       .sort({ returnDate: -1 });
 
     res.json({ returns, total: returns.length });
@@ -33,10 +44,17 @@ router.get('/:id', protect, async (req, res) => {
     const ret = await PurchaseReturn.findById(req.params.id)
       .populate('purchase', 'invoiceNumber invoiceDate totalAmount')
       .populate('supplier', 'name contactPerson phone address')
-      .populate('processedBy', 'username')
+      .populate('processedBy', 'username email chemistName')
+      .populate('user', 'username email chemistName')
       .populate('items.medicine', 'name strength category');
 
     if (!ret) return res.status(404).json({ message: 'Purchase return not found' });
+
+    const isOwner = verifyOwnership(req, ret, 'user') || verifyOwnership(req, ret, 'processedBy');
+    if (!isOwner) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this purchase return record' });
+    }
+
     res.json(ret);
   } catch (error) {
     console.error(error);
@@ -46,7 +64,7 @@ router.get('/:id', protect, async (req, res) => {
 
 // @desc    Create a new purchase return
 // @route   POST /purchase-returns
-// @access  Private (Admin, Pharmacist)
+// @access  Private (Admin, User)
 router.post('/', protect, async (req, res) => {
   try {
     const { purchaseId, reason, items, remarks } = req.body;
@@ -57,6 +75,10 @@ router.post('/', protect, async (req, res) => {
 
     const purchase = await Purchase.findById(purchaseId).populate('supplier');
     if (!purchase) return res.status(404).json({ message: 'Purchase not found' });
+
+    if (!verifyOwnership(req, purchase)) {
+      return res.status(403).json({ message: 'Access Denied: Target purchase belongs to another user' });
+    }
 
     const returnNumber = `RTN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const debitNoteNumber = `DN-${Date.now().toString().slice(-8)}`;
@@ -71,10 +93,9 @@ router.post('/', protect, async (req, res) => {
         return res.status(400).json({ message: 'Invalid return item data' });
       }
 
-      // Find the inventory batch to get purchaseRate and validate stock
-      const batch = await InventoryBatch.findOne({ medicine: medicineId, batchNumber });
+      const batch = await InventoryBatch.findOne({ medicine: medicineId, batchNumber, user: req.user._id });
       if (!batch) {
-        return res.status(404).json({ message: `Batch ${batchNumber} not found for this medicine` });
+        return res.status(404).json({ message: `Batch ${batchNumber} not found for this medicine in your inventory` });
       }
 
       if (batch.quantity < returnQuantity) {
@@ -94,10 +115,10 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    // Create the return record
     const purchaseReturn = new PurchaseReturn({
       purchase: purchaseId,
       supplier: purchase.supplier._id,
+      user: req.user._id,
       returnNumber,
       returnDate: new Date(),
       reason,
@@ -111,9 +132,8 @@ router.post('/', protect, async (req, res) => {
 
     const saved = await purchaseReturn.save();
 
-    // Revert inventory batch quantities & log stock transactions
     for (const item of validatedItems) {
-      const batch = await InventoryBatch.findOne({ medicine: item.medicine, batchNumber: item.batchNumber });
+      const batch = await InventoryBatch.findOne({ medicine: item.medicine, batchNumber: item.batchNumber, user: req.user._id });
       if (batch) {
         const prevStock = batch.quantity;
         batch.quantity -= item.returnQuantity;
@@ -159,8 +179,11 @@ router.post('/', protect, async (req, res) => {
 // @access  Private (Admin)
 router.patch('/:id/status', protect, async (req, res) => {
   try {
-    if (req.user.role.name !== 'Admin') {
-      return res.status(403).json({ message: 'Only Admin can update return status' });
+    const ret = await PurchaseReturn.findById(req.params.id);
+    if (!ret) return res.status(404).json({ message: 'Return not found' });
+
+    if (!verifyOwnership(req, ret, 'user') && !verifyOwnership(req, ret, 'processedBy')) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this purchase return' });
     }
 
     const { status } = req.body;
@@ -168,13 +191,12 @@ router.patch('/:id/status', protect, async (req, res) => {
       return res.status(400).json({ message: 'Invalid status value' });
     }
 
-    const updated = await PurchaseReturn.findByIdAndUpdate(
-      req.params.id,
-      { $set: { status } },
-      { new: true }
-    ).populate('supplier', 'name').populate('purchase', 'invoiceNumber');
+    ret.status = status;
+    await ret.save();
 
-    if (!updated) return res.status(404).json({ message: 'Return not found' });
+    const updated = await PurchaseReturn.findById(ret._id)
+      .populate('supplier', 'name')
+      .populate('purchase', 'invoiceNumber');
 
     res.json(updated);
   } catch (error) {

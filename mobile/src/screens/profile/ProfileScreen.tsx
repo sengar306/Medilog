@@ -1,32 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, Alert } from 'react-native';
 import { TextInput, Button, Card, Title } from 'react-native-paper';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../redux/store';
+import { updateStoreProfile } from '../../redux/slices/authSlice';
+import apiClient from '../../api/apiClient';
 
 export const ProfileScreen: React.FC<any> = ({ navigation }) => {
-  const user = useSelector((state: RootState) => state.auth.user);
+  const dispatch = useDispatch();
+  const profile = useSelector((state: RootState) => state.auth.storeProfile);
 
-  const [storeName, setStoreName] = useState('Assandh Road Pharmacy');
-  const [address, setAddress] = useState('124, Assandh Road, Panipat, Haryana');
-  const [phone, setPhone] = useState('+91 92192 76632');
-  const [email, setEmail] = useState('contact@assandhpharmacy.com');
-  const [gstNumber, setGstNumber] = useState('06AAAAA1111A1Z1');
+  const [storeName, setStoreName] = useState('');
+  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [stateName, setStateName] = useState('Haryana');
+  const [stateCode, setStateCode] = useState('06');
   const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  // Load values on mount
+  useEffect(() => {
+    const fetchRemoteSettings = async () => {
+      try {
+        const res = await apiClient.get('/whatsapp/config');
+        if (res.data && res.data.data) {
+          const config = res.data.data;
+          setStoreName(config.businessName || '');
+          if (config.pdfConfig) {
+            setAddress(config.pdfConfig.address || '');
+            setPhone(config.pdfConfig.phone || '');
+            setEmail(config.pdfConfig.email || '');
+            setGstNumber(config.pdfConfig.gstNumber || '');
+            setStateName(config.pdfConfig.stateName || 'Haryana');
+            setStateCode(config.pdfConfig.stateCode || '06');
+          }
+        }
+      } catch (err) {
+        console.log('Failed to fetch remote settings, using local redux config:', err);
+        if (profile) {
+          setStoreName(profile.storeName || '');
+          setAddress(profile.address || '');
+          setPhone(profile.phone || '');
+          setEmail(profile.email || '');
+          setGstNumber(profile.gstNumber || '');
+          setStateName((profile as any).stateName || 'Haryana');
+          setStateCode((profile as any).stateCode || '06');
+        }
+      }
+    };
+    fetchRemoteSettings();
+  }, [profile]);
+
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      // 1. Update local Redux state
+      dispatch(updateStoreProfile({
+        storeName,
+        address,
+        phone,
+        email,
+        gstNumber,
+        stateName,
+        stateCode
+      } as any));
+
+      // 2. Persist to backend database settings
+      const payload = {
+        businessName: storeName,
+        pdfConfig: {
+          gstNumber,
+          address,
+          email,
+          phone,
+          stateName,
+          stateCode
+        }
+      };
+      await apiClient.post('/whatsapp/config', payload);
+
       Alert.alert('Success', 'Store profile details saved successfully.');
-    }, 1000);
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert('Save Error', err.response?.data?.message || 'Failed to sync settings to server.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Title style={styles.title}>🏪 Store Profile</Title>
-        <Text style={styles.subtitle}>Configure pharmacy business details, billing address, and GSTIN code</Text>
+        <Title style={styles.title}>🏪 Store Profile & PDF settings</Title>
+        <Text style={styles.subtitle}>Configure pharmacy business details, billing address, state codes, and GSTIN header settings</Text>
       </View>
 
       <Card style={styles.card}>
@@ -93,6 +160,30 @@ export const ProfileScreen: React.FC<any> = ({ navigation }) => {
             autoCapitalize="characters"
           />
 
+          <View style={styles.row}>
+            <TextInput
+              label="State Name"
+              mode="outlined"
+              value={stateName}
+              onChangeText={setStateName}
+              style={[styles.input, { flex: 1.5, marginRight: 10 }]}
+              activeOutlineColor="#bb86fc"
+              outlineColor="#333"
+              textColor="#fff"
+            />
+            <TextInput
+              label="State Code"
+              mode="outlined"
+              keyboardType="numeric"
+              value={stateCode}
+              onChangeText={setStateCode}
+              style={[styles.input, { flex: 1 }]}
+              activeOutlineColor="#bb86fc"
+              outlineColor="#333"
+              textColor="#fff"
+            />
+          </View>
+
           <Button
             mode="contained"
             onPress={handleSave}
@@ -155,6 +246,11 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
     backgroundColor: '#151515',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   saveBtn: {
     marginTop: 10,

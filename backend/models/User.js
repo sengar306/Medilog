@@ -27,12 +27,33 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  chemistName: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  logoUrl: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   whatsappConfig: {
     metaAccessToken: { type: String, default: '' },
     metaPhoneNumberId: { type: String, default: '' },
     metaBusinessId: { type: String, default: '' },
     businessName: { type: String, default: '' },
     senderNumber: { type: String, default: '' }
+  },
+  pdfConfig: {
+    gstNumber: { type: String, default: '' },
+    address: { type: String, default: '' },
+    email: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    stateName: { type: String, default: '' },
+    stateCode: { type: String, default: '' },
+    drugLicenseNumber: { type: String, default: '' },
+    invoiceFooter: { type: String, default: '' },
+    termsAndConditions: { type: String, default: '' }
   }
 }, { timestamps: true });
 

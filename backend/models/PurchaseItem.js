@@ -6,6 +6,10 @@ const PurchaseItemSchema = new mongoose.Schema({
     ref: 'Purchase',
     required: true,
   },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
   medicine: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Medicine',
@@ -24,6 +28,10 @@ const PurchaseItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
+  },
+  freeQuantity: {
+    type: Number,
+    default: 0,
   },
   purchaseRate: {
     type: Number,

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, FlatList, Modal, Alert, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, FlatList, Modal, Alert, TouchableOpacity, Linking } from 'react-native';
 import { TextInput, Button, Card, Title, IconButton, HelperText } from 'react-native-paper';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../redux/store';
 import apiClient from '../../api/apiClient';
 import ScannerView from '../../components/ScannerView';
 import { PDFInvoiceBuilder } from '../../utils/pdfInvoiceBuilder';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { queueOfflineSale } from '../../redux/slices/syncSlice';
 
 interface Medicine {
   _id: string;
@@ -27,7 +28,9 @@ interface CartItem {
 }
 
 export const BillingScreen: React.FC = () => {
+  const dispatch = useDispatch();
   const isOnline = useSelector((state: RootState) => state.sync.isOnline);
+  const storeProfile = useSelector((state: RootState) => state.auth.storeProfile);
   
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -40,6 +43,54 @@ export const BillingScreen: React.FC = () => {
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+
+  const fetchRecentSales = async () => {
+    try {
+      const res = await apiClient.get('/sales/list');
+      if (res.data) {
+        setRecentSales(res.data.slice(0, 5));
+      }
+    } catch (err) {
+      console.log('Failed to fetch recent sales:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecentSales();
+  }, []);
+
+  const handleResendWhatsApp = async (sale: any) => {
+    const phone = sale.customer?.phone || sale.customerPhone || '';
+    if (!phone) {
+      Alert.alert('Error', 'No customer phone number linked to this invoice.');
+      return;
+    }
+    
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    
+    const pdfUrl = `http://localhost:5000/api/v1/invoices/${sale.invoiceNumber}/pdf`;
+    const text = `Hello ${sale.customer?.name || 'Customer'},\n\nHere is your invoice *#${sale.invoiceNumber}* from *${storeProfile?.storeName || 'MediLog Pharmacy'}*.\n\n*Bill Summary*:\n- Subtotal: INR ${(sale.subTotal || 0).toFixed(2)}\n- GST Taxes: INR ${(sale.gstTotal || 0).toFixed(2)}\n- Discount: INR ${(sale.discountAmount || 0).toFixed(2)}\n- Grand Total: *INR ${(sale.totalAmount || 0).toFixed(2)}*\n\n📄 *Download PDF Invoice:* ${pdfUrl}\n\nGet well soon!`;
+    const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
+
+    Alert.alert(
+      'Resend Invoice',
+      `Send invoice #${sale.invoiceNumber} to +${phone} via WhatsApp?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: async () => {
+            Linking.openURL(url).catch(() => {
+              Alert.alert('Error', 'WhatsApp app is not installed.');
+            });
+            apiClient.post('/whatsapp/send-existing-bill', { saleId: sale._id }).catch(() => {});
+          }
+        }
+      ]
+    );
+  };
 
   // Search Medicines
   useEffect(() => {
@@ -118,15 +169,16 @@ export const BillingScreen: React.FC = () => {
   };
 
   const calculateGstTotal = () => {
-    return cart.reduce((acc, item) => {
-      const itemGst = item.total - (item.total / (1 + item.gstPercent / 100));
-      return acc + itemGst;
-    }, 0);
+    // GST is calculated on top of the subtotal (MRP)
+    return cart.reduce((acc, item) => acc + (item.quantity * item.rate * (item.gstPercent / 100)), 0);
   };
 
   const calculateGrandTotal = () => {
     const discountVal = parseFloat(discount) || 0;
-    return Math.max(0, calculateSubtotal() - discountVal);
+    const subTotal = calculateSubtotal();
+    const gstTotal = calculateGstTotal();
+    const grandTotal = subTotal + gstTotal - discountVal;
+    return grandTotal > 0 ? grandTotal : 0;
   };
 
   // Perform Sale Checkout
@@ -137,6 +189,118 @@ export const BillingScreen: React.FC = () => {
     }
 
     setLoading(true);
+
+    // Offline mode: queue the bill locally
+    if (!isOnline) {
+      setLoading(false);
+      Alert.alert(
+        'Offline Mode',
+        'You are currently offline. Would you like to queue this sale locally?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Queue Offline',
+            onPress: () => {
+              const offlineId = `OFF-${Date.now()}`;
+              const offlineSale = {
+                id: offlineId,
+                customerName: customerName || 'Walk-in Customer',
+                customerPhone: customerPhone || '',
+                items: cart.map(item => ({
+                  medicineId: item.medicine._id,
+                  medicineName: item.medicine.name,
+                  quantity: item.quantity,
+                  rate: item.rate,
+                  mrp: item.rate,
+                  gstPercent: item.gstPercent,
+                })),
+                discountAmount: parseFloat(discount) || 0,
+                paymentMode,
+                createdAt: new Date().toISOString(),
+              };
+              
+              dispatch(queueOfflineSale(offlineSale));
+
+              Alert.alert(
+                'Sale Queued Offline',
+                'Invoice saved to offline sync queue! Options:',
+                [
+                  {
+                    text: 'Print Receipt',
+                    onPress: () => {
+                      PDFInvoiceBuilder.printInvoice({
+                        invoiceNumber: offlineId,
+                        customerName: customerName || 'Walk-in Customer',
+                        customerPhone,
+                        items: cart.map(c => ({
+                          medicineName: c.medicine.name,
+                          quantity: c.quantity,
+                          rate: c.rate,
+                          mrp: c.rate,
+                          gstPercent: c.gstPercent,
+                          totalAmount: c.quantity * c.rate * (1 + c.gstPercent / 100)
+                        })),
+                        discountAmount: parseFloat(discount) || 0,
+                        taxAmount: calculateGstTotal(),
+                        totalAmount: calculateGrandTotal(),
+                        paymentMode,
+                        createdAt: new Date().toISOString(),
+                        businessName: storeProfile?.storeName || 'MediLog Pharmacy',
+                        gstNumber: storeProfile?.gstNumber,
+                        address: storeProfile?.address,
+                        email: storeProfile?.email,
+                        phone: storeProfile?.phone,
+                        stateName: (storeProfile as any)?.stateName || 'Haryana',
+                        stateCode: (storeProfile as any)?.stateCode || '06'
+                      });
+                    }
+                  },
+                  {
+                    text: 'Share PDF',
+                    onPress: () => {
+                      PDFInvoiceBuilder.shareInvoice({
+                        invoiceNumber: offlineId,
+                        customerName: customerName || 'Walk-in Customer',
+                        customerPhone,
+                        items: cart.map(c => ({
+                          medicineName: c.medicine.name,
+                          quantity: c.quantity,
+                          rate: c.rate,
+                          mrp: c.rate,
+                          gstPercent: c.gstPercent,
+                          totalAmount: c.quantity * c.rate * (1 + c.gstPercent / 100)
+                        })),
+                        discountAmount: parseFloat(discount) || 0,
+                        taxAmount: calculateGstTotal(),
+                        totalAmount: calculateGrandTotal(),
+                        paymentMode,
+                        createdAt: new Date().toISOString(),
+                        businessName: storeProfile?.storeName || 'MediLog Pharmacy',
+                        gstNumber: storeProfile?.gstNumber,
+                        address: storeProfile?.address,
+                        email: storeProfile?.email,
+                        phone: storeProfile?.phone,
+                        stateName: (storeProfile as any)?.stateName || 'Haryana',
+                        stateCode: (storeProfile as any)?.stateCode || '06'
+                      });
+                    }
+                  },
+                  { text: 'Done', style: 'cancel' }
+                ]
+              );
+
+              // Reset POS
+              setCart([]);
+              setCustomerName('');
+              setCustomerPhone('');
+              setDiscount('0');
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     try {
       const payload = {
         customerName: customerName || 'Walk-in Customer',
@@ -152,60 +316,97 @@ export const BillingScreen: React.FC = () => {
       const response = await apiClient.post('/sales', payload);
       if (response.status === 201 && response.data?.sale) {
         const { sale } = response.data;
+        
+        const hasPhone = !!customerPhone;
+        const optionsList = [
+          {
+            text: 'Print Receipt',
+            onPress: () => {
+              PDFInvoiceBuilder.printInvoice({
+                invoiceNumber: sale.invoiceNumber,
+                customerName: customerName || 'Walk-in Customer',
+                customerPhone,
+                items: cart.map(c => ({
+                  medicineName: c.medicine.name,
+                  quantity: c.quantity,
+                  rate: c.rate,
+                  mrp: c.rate,
+                  gstPercent: c.gstPercent,
+                  totalAmount: c.quantity * c.rate * (1 + c.gstPercent / 100)
+                })),
+                discountAmount: parseFloat(discount) || 0,
+                taxAmount: calculateGstTotal(),
+                totalAmount: calculateGrandTotal(),
+                paymentMode,
+                createdAt: new Date().toISOString(),
+                businessName: storeProfile?.storeName || 'MediLog Pharmacy',
+                gstNumber: storeProfile?.gstNumber,
+                address: storeProfile?.address,
+                email: storeProfile?.email,
+                phone: storeProfile?.phone,
+                stateName: (storeProfile as any)?.stateName || 'Haryana',
+                stateCode: (storeProfile as any)?.stateCode || '06'
+              });
+            }
+          }
+        ];
+
+        if (hasPhone) {
+          optionsList.push({
+            text: 'Send WhatsApp',
+            onPress: () => {
+              const cleanPhone = customerPhone.replace(/[^0-9]/g, '');
+              const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+              
+              const pdfUrl = `http://localhost:5000/api/v1/invoices/${sale.invoiceNumber}/pdf`;
+              const text = `Hello ${customerName || 'Customer'},\n\nYour invoice *#${sale.invoiceNumber}* from *${storeProfile?.storeName || 'MediLog Pharmacy'}* has been generated.\n\n*Bill Summary*:\n- Subtotal: INR ${(sale.subTotal || 0).toFixed(2)}\n- GST Taxes: INR ${(sale.gstTotal || 0).toFixed(2)}\n- Discount: INR ${(sale.discountAmount || 0).toFixed(2)}\n- Grand Total: *INR ${(sale.totalAmount || 0).toFixed(2)}*\n\n📄 *Download PDF Invoice:* ${pdfUrl}\n\nThank you!`;
+              const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
+              
+              Linking.openURL(url).catch(() => {
+                Alert.alert('Error', 'WhatsApp app is not installed on this device.');
+              });
+              apiClient.post('/whatsapp/send-existing-bill', { saleId: sale._id }).catch(() => {});
+            }
+          });
+        } else {
+          optionsList.push({
+            text: 'Share PDF',
+            onPress: () => {
+              PDFInvoiceBuilder.shareInvoice({
+                invoiceNumber: sale.invoiceNumber,
+                customerName: customerName || 'Walk-in Customer',
+                customerPhone,
+                items: cart.map(c => ({
+                  medicineName: c.medicine.name,
+                  quantity: c.quantity,
+                  rate: c.rate,
+                  mrp: c.rate,
+                  gstPercent: c.gstPercent,
+                  totalAmount: c.quantity * c.rate * (1 + c.gstPercent / 100)
+                })),
+                discountAmount: parseFloat(discount) || 0,
+                taxAmount: calculateGstTotal(),
+                totalAmount: calculateGrandTotal(),
+                paymentMode,
+                createdAt: new Date().toISOString(),
+                businessName: storeProfile?.storeName || 'MediLog Pharmacy',
+                gstNumber: storeProfile?.gstNumber,
+                address: storeProfile?.address,
+                email: storeProfile?.email,
+                phone: storeProfile?.phone,
+                stateName: (storeProfile as any)?.stateName || 'Haryana',
+                stateCode: (storeProfile as any)?.stateCode || '06'
+              });
+            }
+          });
+        }
+
+        optionsList.push({ text: 'Done', onPress: () => {} });
+
         Alert.alert(
           'Sale Complete',
           `Invoice #${sale.invoiceNumber} generated! Options:`,
-          [
-            {
-              text: 'Print Receipt',
-              onPress: () => {
-                PDFInvoiceBuilder.printInvoice({
-                  invoiceNumber: sale.invoiceNumber,
-                  customerName: customerName || 'Walk-in Customer',
-                  customerPhone,
-                  items: cart.map(c => ({
-                    medicineName: c.medicine.name,
-                    quantity: c.quantity,
-                    rate: c.rate,
-                    mrp: c.rate,
-                    gstPercent: c.gstPercent,
-                    totalAmount: c.total
-                  })),
-                  discountAmount: parseFloat(discount) || 0,
-                  taxAmount: calculateGstTotal(),
-                  totalAmount: calculateGrandTotal(),
-                  paymentMode,
-                  createdAt: new Date().toISOString(),
-                  businessName: 'MediLog Pharmacy'
-                });
-              }
-            },
-            {
-              text: 'Share PDF',
-              onPress: () => {
-                PDFInvoiceBuilder.shareInvoice({
-                  invoiceNumber: sale.invoiceNumber,
-                  customerName: customerName || 'Walk-in Customer',
-                  customerPhone,
-                  items: cart.map(c => ({
-                    medicineName: c.medicine.name,
-                    quantity: c.quantity,
-                    rate: c.rate,
-                    mrp: c.rate,
-                    gstPercent: c.gstPercent,
-                    totalAmount: c.total
-                  })),
-                  discountAmount: parseFloat(discount) || 0,
-                  taxAmount: calculateGstTotal(),
-                  totalAmount: calculateGrandTotal(),
-                  paymentMode,
-                  createdAt: new Date().toISOString(),
-                  businessName: 'MediLog Pharmacy'
-                });
-              }
-            },
-            { text: 'Done', style: 'cancel' }
-          ]
+          optionsList
         );
 
         // Reset POS
@@ -213,6 +414,7 @@ export const BillingScreen: React.FC = () => {
         setCustomerName('');
         setCustomerPhone('');
         setDiscount('0');
+        fetchRecentSales();
       }
     } catch (err: any) {
       Alert.alert('Checkout Failed', err.response?.data?.message || 'Error processing sales billing.');
@@ -376,6 +578,48 @@ export const BillingScreen: React.FC = () => {
         >
           Generate Invoice (Checkout)
         </Button>
+
+        {/* Recent Invoices list */}
+        <Card style={[styles.card, { marginTop: 20 }]}>
+          <Card.Content>
+            <Text style={styles.sectionHeader}>Recent Transactions</Text>
+            {recentSales.length === 0 ? (
+              <Text style={styles.empty}>No sales recorded yet.</Text>
+            ) : (
+              recentSales.map((sale) => {
+                const phone = sale.customer?.phone || sale.customerPhone || '';
+                return (
+                  <View key={sale._id} style={styles.recentRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.recentInvoice}>Invoice: #{sale.invoiceNumber}</Text>
+                      <Text style={styles.recentMeta}>
+                        {sale.customer?.name || 'Walk-in'} {phone ? `· +${phone}` : ''}
+                      </Text>
+                      <Text style={styles.recentTotal}>Amount Paid: ₹{sale.totalAmount.toFixed(2)} ({sale.paymentMode})</Text>
+                    </View>
+                    {phone ? (
+                      <IconButton
+                        icon="whatsapp"
+                        iconColor="#25d366"
+                        size={22}
+                        mode="outlined"
+                        style={{ borderColor: 'rgba(37, 211, 102, 0.3)', backgroundColor: 'rgba(37, 211, 102, 0.05)' }}
+                        onPress={() => handleResendWhatsApp(sale)}
+                      />
+                    ) : (
+                      <IconButton
+                        icon="whatsapp"
+                        iconColor="#555"
+                        size={22}
+                        disabled
+                      />
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </Card.Content>
+        </Card>
       </ScrollView>
     </View>
   );
@@ -519,6 +763,29 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 8,
     marginTop: 10,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  recentInvoice: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  recentMeta: {
+    color: '#aaa',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  recentTotal: {
+    color: '#a855f7',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
   },
 });
 

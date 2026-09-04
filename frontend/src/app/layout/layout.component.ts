@@ -36,6 +36,8 @@ import { NotificationService } from '../core/services/notification.service';
             }
           </a>
 
+       
+
           <a routerLink="/purchases" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-cart-check-fill"></i>
             <span>Purchase</span>
@@ -85,7 +87,7 @@ import { NotificationService } from '../core/services/notification.service';
             }
           </a>
 
-          @if (role() === 'Admin') {
+          @if (isAdminRole()) {
             <a routerLink="/users" routerLinkActive="active-tab" class="nav-item">
               <i class="bi bi-people-fill"></i>
               <span>Users</span>
@@ -391,9 +393,12 @@ import { NotificationService } from '../core/services/notification.service';
       z-index: 1000;
       padding: 0;
       overflow: hidden;
-      border: 1px solid var(--glass-border);
+      background: rgba(13, 19, 34, 0.98);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
       animation: slideDown 0.2s ease;
     }
     @keyframes slideDown {
@@ -535,13 +540,19 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   role() {
     const user = this.apiService.currentUser();
-    return user ? user.role : 'Guest';
+    if (!user) return 'Guest';
+    return typeof user.role === 'string' ? user.role : (user.role?.name || 'User');
+  }
+
+  isAdminRole(): boolean {
+    const r = this.role();
+    return r === 'Admin' || r === 'Super Admin';
   }
 
   getRoleClass(): string {
     const role = this.role();
-    if (role === 'Admin') return 'badge-danger';
-    if (role === 'Pharmacist') return 'badge-success';
+    if (role === 'Admin' || role === 'Super Admin') return 'badge-danger';
+    if (role === 'Pharmacist' || role === 'Chemist') return 'badge-success';
     return 'badge-info';
   }
 

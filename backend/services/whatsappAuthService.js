@@ -113,7 +113,7 @@ class WhatsAppAuthService {
     // Attempt Meta WhatsApp Cloud API if credentials provided
     if (config && config.metaAccessToken && config.metaPhoneNumberId) {
       try {
-        const response = await fetch(`https://graph.facebook.com/v25.0/${config.metaPhoneNumberId}/messages`, {
+        const response = await fetch(`https://graph.facebook.com/v20.0/${config.metaPhoneNumberId}/messages`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${config.metaAccessToken}`,

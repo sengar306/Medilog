@@ -3,6 +3,8 @@ const router = express.Router();
 const InventoryBatch = require('../models/InventoryBatch');
 const Medicine = require('../models/Medicine');
 const { protect } = require('../middleware/auth');
+const { getUserScope } = require('../utils/userScope');
+const mongoose = require('mongoose');
 
 // In-memory dismissed notifications store (per session)
 const dismissedIds = new Set();
@@ -12,6 +14,7 @@ const dismissedIds = new Set();
 // @access  Private
 router.get('/active', protect, async (req, res) => {
   try {
+    const userScope = getUserScope(req);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -23,31 +26,34 @@ router.get('/active', protect, async (req, res) => {
 
     // 1. Near expiry in 30 days (CRITICAL)
     const criticalExpiry = await InventoryBatch.find({
+      ...userScope,
       quantity: { $gt: 0 },
       expiryDate: { $gte: today, $lte: thirtyDays }
     }).populate('medicine', 'name strength category');
 
     // 2. Near expiry 31–90 days (WARNING)
     const warningExpiry = await InventoryBatch.find({
+      ...userScope,
       quantity: { $gt: 0 },
       expiryDate: { $gt: thirtyDays, $lte: ninetyDays }
     }).populate('medicine', 'name strength category');
 
     // 3. Expired with stock
     const expired = await InventoryBatch.find({
+      ...userScope,
       quantity: { $gt: 0 },
       expiryDate: { $lt: today }
     }).populate('medicine', 'name strength category');
 
     // 4. Low stock
-    const medicines = await Medicine.find({});
+    const medicines = await Medicine.find(userScope);
+    const matchCriteria = { quantity: { $gt: 0 }, expiryDate: { $gte: today } };
+    if (userScope.user) {
+      matchCriteria.user = new mongoose.Types.ObjectId(userScope.user);
+    }
+
     const batchAgg = await InventoryBatch.aggregate([
-      {
-        $match: {
-          quantity: { $gt: 0 },
-          expiryDate: { $gte: today }
-        }
-      },
+      { $match: matchCriteria },
       { $group: { _id: '$medicine', totalStock: { $sum: '$quantity' } } }
     ]);
     const stockMap = {};

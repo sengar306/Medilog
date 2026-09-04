@@ -36,7 +36,7 @@ import { ApiService } from '../core/services/api.service';
             <table class="glass-table">
               <thead>
                 <tr>
-                  <th>Username</th>
+                  <th>Username / Store Name</th>
                   <th>Email Address</th>
                   <th>Role</th>
                   <th>Status</th>
@@ -50,9 +50,12 @@ import { ApiService } from '../core/services/api.service';
                     <td>
                       <div class="user-info-cell">
                         <div class="avatar-sm">
-                          <i class="bi bi-person-circle"></i>
+                          <i class="bi bi-shop"></i>
                         </div>
-                        <strong>{{ user.username }}</strong>
+                        <div>
+                          <strong>{{ user.chemistName || user.username }}</strong>
+                          <div class="text-secondary" style="font-size: 11px;">Username: {{ user.username }}</div>
+                        </div>
                       </div>
                     </td>
                     <td>{{ user.email }}</td>
@@ -106,6 +109,11 @@ import { ApiService } from '../core/services/api.service';
                 <div class="form-group">
                   <label class="form-label">Username *</label>
                   <input type="text" [(ngModel)]="userForm.username" name="username" class="glass-input" required [disabled]="isEditMode()">
+                </div>
+
+                <div class="form-group mt-3">
+                  <label class="form-label">Chemist / Store Name *</label>
+                  <input type="text" [(ngModel)]="userForm.chemistName" name="chemistName" class="glass-input" placeholder="e.g. City Care Pharmacy" required>
                 </div>
 
                 <div class="form-group mt-3">
@@ -419,6 +427,7 @@ export class UsersComponent implements OnInit {
   userForm = {
     _id: '',
     username: '',
+    chemistName: '',
     email: '',
     password: '',
     roleName: 'User',
@@ -455,6 +464,7 @@ export class UsersComponent implements OnInit {
     this.filteredUsers.set(
       this.users().filter(u => 
         u.username.toLowerCase().includes(query) || 
+        (u.chemistName && u.chemistName.toLowerCase().includes(query)) ||
         u.email.toLowerCase().includes(query)
       )
     );
@@ -466,6 +476,7 @@ export class UsersComponent implements OnInit {
     this.userForm = {
       _id: '',
       username: '',
+      chemistName: '',
       email: '',
       password: '',
       roleName: 'User',
@@ -480,6 +491,7 @@ export class UsersComponent implements OnInit {
     this.userForm = {
       _id: user._id,
       username: user.username,
+      chemistName: user.chemistName || '',
       email: user.email,
       password: '',
       roleName: user.role?.name || 'User',
@@ -509,6 +521,7 @@ export class UsersComponent implements OnInit {
     if (this.isEditMode()) {
       // Edit mode
       const payload = {
+        chemistName: this.userForm.chemistName,
         email: this.userForm.email,
         roleName: this.userForm.roleName,
         isActive: this.userForm.isActive
@@ -527,6 +540,7 @@ export class UsersComponent implements OnInit {
       // Create mode
       const payload = {
         username: this.userForm.username,
+        chemistName: this.userForm.chemistName,
         email: this.userForm.email,
         password: this.userForm.password,
         roleName: this.userForm.roleName

@@ -86,7 +86,7 @@ export const SettingsScreen: React.FC = () => {
             </View>
             <Switch
               value={themeMode === 'dark'}
-              onValueChange={() => dispatch(toggleThemeMode())}
+              onValueChange={() => { dispatch(toggleThemeMode()); }}
               color="#bb86fc"
             />
           </View>

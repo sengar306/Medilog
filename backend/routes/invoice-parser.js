@@ -224,6 +224,7 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
                   "batchNumber": "string (extract visible batch number, else generate a standard mock if missing)",
                   "expiryDate": "YYYY-MM-DD (convert expiry to ISO date)",
                   "quantity": number,
+                  "freeQuantity": "number (if visible, extract the free quantity, else default to 0)",
                   "purchaseRate": number,
                   "mrp": number,
                   "gstPercent": number
@@ -283,6 +284,11 @@ router.get('/result/:jobId', protect, async (req, res) => {
       return res.status(404).json({ message: 'Parsing job not found' });
     }
 
+    const { verifyOwnership } = require('../utils/userScope');
+    if (!verifyOwnership(req, job, 'createdBy')) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this invoice job' });
+    }
+
     if (job.status !== 'Success') {
       return res.json({ status: job.status, error: job.error });
     }
@@ -295,8 +301,9 @@ router.get('/result/:jobId', protect, async (req, res) => {
       // Clean name for better matches
       const cleanName = item.name.replace(/[^\w\s]/gi, '').trim();
       
-      // Try exact or partial regex match on name or generic name
+      // Try exact or partial regex match on name or generic name within user's inventory
       let matchedMedicine = await Medicine.findOne({
+        user: req.user._id,
         $or: [
           { name: new RegExp(cleanName, 'i') },
           { name: new RegExp(item.name.split(' ')[0], 'i') },
@@ -349,10 +356,11 @@ router.post('/confirm', protect, authorize('Admin', 'User'), async (req, res) =>
     }
 
     // 1. Resolve or Create Supplier
-    let dbSupplier = await Supplier.findOne({ name: supplier.name });
+    let dbSupplier = await Supplier.findOne({ name: supplier.name, user: req.user._id });
     if (!dbSupplier) {
       dbSupplier = new Supplier({
         name: supplier.name,
+        user: req.user._id,
         gstNumber: supplier.gstNumber,
         phone: supplier.phone,
         email: supplier.email,
@@ -371,6 +379,7 @@ router.post('/confirm', protect, authorize('Admin', 'User'), async (req, res) =>
         // Auto-create medicine from invoice data
         const newMed = new Medicine({
           name: item.name,
+          user: req.user._id,
           strength: item.strength || 'N/A',
           category: item.category || 'Tablet',
           genericName: item.genericName || item.name,
@@ -387,6 +396,7 @@ router.post('/confirm', protect, authorize('Admin', 'User'), async (req, res) =>
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
         quantity: item.quantity,
+        freeQuantity: item.freeQuantity || 0,
         purchaseRate: item.purchaseRate,
         mrp: item.mrp,
         gstPercent: item.gstPercent
@@ -394,11 +404,6 @@ router.post('/confirm', protect, authorize('Admin', 'User'), async (req, res) =>
     }
 
     // 3. Delegate to the purchase creation logic
-    // We can simulate an internal redirection or directly invoke the purchase handler logic.
-    // To keep it simple, we will execute the purchase creation right here.
-    const PurchaseRoutes = require('./purchase');
-    
-    // We map details to format required by POST /api/purchase
     req.body = {
       supplierId: dbSupplier._id,
       invoiceNumber: invoice.invoiceNumber,
@@ -407,10 +412,6 @@ router.post('/confirm', protect, authorize('Admin', 'User'), async (req, res) =>
       remarks: remarks || 'Imported via AI Invoice Parser'
     };
 
-    // Forward execution by resolving the handler manually or calling same logic:
-    // Let's call the logic directly to avoid route issues
-    const { connectDB } = require('../config/db'); // ensure DB context
-    
     const response = await fetchCreatePurchase(req, dbSupplier._id);
     if (response.error) {
       return res.status(response.code).json({ message: response.message });
@@ -439,9 +440,10 @@ const fetchCreatePurchase = async (req, supplierId) => {
     const validatedItems = [];
 
     for (const item of items) {
-      const qty = parseFloat(item.quantity);
-      const rate = parseFloat(item.purchaseRate);
-      const mrp = parseFloat(item.mrp);
+      const qty = parseFloat(item.quantity) || 0;
+      const freeQty = parseFloat(item.freeQuantity) || 0;
+      const rate = parseFloat(item.purchaseRate) || 0;
+      const mrp = parseFloat(item.mrp) || 0;
       const gstP = parseFloat(item.gstPercent || 0);
 
       const itemSubtotal = qty * rate;
@@ -457,6 +459,7 @@ const fetchCreatePurchase = async (req, supplierId) => {
         batchNumber: item.batchNumber,
         expiryDate: new Date(item.expiryDate),
         quantity: qty,
+        freeQuantity: freeQty,
         purchaseRate: rate,
         mrp,
         gstPercent: gstP,
@@ -467,6 +470,7 @@ const fetchCreatePurchase = async (req, supplierId) => {
 
     const purchase = new Purchase({
       supplier: supplierId,
+      user: req.user._id,
       invoiceNumber,
       invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
       subTotal: Math.round(subTotal * 100) / 100,
@@ -481,10 +485,12 @@ const fetchCreatePurchase = async (req, supplierId) => {
     for (const item of validatedItems) {
       const pItem = new PurchaseItem({
         purchase: savedPurchase._id,
+        user: req.user._id,
         medicine: item.medicineId,
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
         quantity: item.quantity,
+        freeQuantity: item.freeQuantity || 0,
         purchaseRate: item.purchaseRate,
         mrp: item.mrp,
         gstPercent: item.gstPercent,
@@ -495,13 +501,16 @@ const fetchCreatePurchase = async (req, supplierId) => {
 
       let batch = await InventoryBatch.findOne({
         medicine: item.medicineId,
-        batchNumber: item.batchNumber
+        batchNumber: item.batchNumber,
+        user: req.user._id
       });
 
       let prevStock = 0;
+      const totalQtyToAdd = item.quantity + (item.freeQuantity || 0);
+
       if (batch) {
         prevStock = batch.quantity;
-        batch.quantity += item.quantity;
+        batch.quantity += totalQtyToAdd;
         batch.expiryDate = item.expiryDate;
         batch.purchaseRate = item.purchaseRate;
         batch.mrp = item.mrp;
@@ -511,9 +520,10 @@ const fetchCreatePurchase = async (req, supplierId) => {
         batch = new InventoryBatch({
           medicine: item.medicineId,
           batchNumber: item.batchNumber,
+          user: req.user._id,
           expiryDate: item.expiryDate,
-          quantity: item.quantity,
-          initialQuantity: item.quantity,
+          quantity: totalQtyToAdd,
+          initialQuantity: totalQtyToAdd,
           purchaseRate: item.purchaseRate,
           mrp: item.mrp,
           gstPercent: item.gstPercent,
@@ -548,7 +558,7 @@ const fetchCreatePurchase = async (req, supplierId) => {
     return { error: false, code: 201, data: { purchase: savedPurchase, items: validatedItems } };
   } catch (err) {
     if (err.code === 11000) {
-      return { error: true, code: 400, message: 'Duplicate purchase invoice for this supplier' };
+      return { error: true, code: 400, message: 'Duplicate purchase invoice for this supplier and user' };
     }
     return { error: true, code: 500, message: `Confirm purchase failed: ${err.message}` };
   }

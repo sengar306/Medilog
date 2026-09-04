@@ -49,7 +49,7 @@ const TabNavigator = () => {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
-          let iconName = '';
+          let iconName: keyof typeof MaterialCommunityIcons.glyphMap = 'view-dashboard';
           if (route.name === 'Dashboard') iconName = 'view-dashboard';
           else if (route.name === 'Billing') iconName = 'cash-register';
           else if (route.name === 'Inventory') iconName = 'pill';

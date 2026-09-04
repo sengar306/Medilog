@@ -308,11 +308,17 @@ import { ApiService } from '../core/services/api.service';
 
     /* Modal */
     .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      position: fixed; inset: 0; background: rgba(4, 8, 18, 0.85); backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px;
     }
     .modal-panel {
       width: 100%; max-width: 760px; max-height: 90vh; display: flex; flex-direction: column;
+      background: rgba(13, 19, 34, 0.98) !important;
+      backdrop-filter: blur(16px) !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9) !important;
       border-radius: 20px; overflow: hidden; animation: modalIn 0.25s ease;
     }
     @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
@@ -351,6 +357,7 @@ import { ApiService } from '../core/services/api.service';
   `]
 })
 export class PrescriptionComponent implements OnInit {
+  isDevMode = isDevMode();
   private apiService = inject(ApiService);
 
   prescriptions = signal<any[]>([]);

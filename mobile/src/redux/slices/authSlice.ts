@@ -1,5 +1,13 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export interface StoreProfile {
+  storeName: string;
+  address: string;
+  phone: string;
+  email: string;
+  gstNumber: string;
+}
+
 interface User {
   id: string;
   username: string;
@@ -12,6 +20,7 @@ interface AuthState {
   token: string | null;
   isBiometricEnabled: boolean;
   themeMode: 'light' | 'dark';
+  storeProfile: StoreProfile;
 }
 
 const initialState: AuthState = {
@@ -19,6 +28,13 @@ const initialState: AuthState = {
   token: null,
   isBiometricEnabled: false,
   themeMode: 'dark',
+  storeProfile: {
+    storeName: 'Assandh Road Pharmacy',
+    address: '124, Assandh Road, Panipat, Haryana',
+    phone: '+91 92192 76632',
+    email: 'contact@assandhpharmacy.com',
+    gstNumber: '06AAAAA1111A1Z1',
+  },
 };
 
 const authSlice = createSlice({
@@ -42,10 +58,13 @@ const authSlice = createSlice({
     toggleThemeMode: (state) => {
       state.themeMode = state.themeMode === 'light' ? 'dark' : 'light';
     },
+    updateStoreProfile: (state, action: PayloadAction<StoreProfile>) => {
+      state.storeProfile = action.payload;
+    },
   },
 });
 
-export const { setCredentials, logout, setBiometricEnabled, toggleThemeMode } =
+export const { setCredentials, logout, setBiometricEnabled, toggleThemeMode, updateStoreProfile } =
   authSlice.actions;
 
 export default authSlice.reducer;

@@ -6,6 +6,10 @@ const SaleItemSchema = new mongoose.Schema({
     ref: 'Sale',
     required: true,
   },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
   medicine: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Medicine',

@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Customer = require('../models/Customer');
 const Sale = require('../models/Sale');
-const SaleItem = require('../models/SaleItem');
 const { protect } = require('../middleware/auth');
+const { getUserScope, verifyOwnership } = require('../utils/userScope');
 
 // @desc    Get customer loyalty profile
 // @route   GET /loyalty/:customerId
@@ -13,14 +13,16 @@ router.get('/:customerId', protect, async (req, res) => {
     const customer = await Customer.findById(req.params.customerId);
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
-    // Purchase history summary
+    if (!verifyOwnership(req, customer)) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this customer profile' });
+    }
+
     const sales = await Sale.find({ customer: req.params.customerId })
       .sort({ saleDate: -1 })
       .limit(10);
 
     const totalSalesCount = await Sale.countDocuments({ customer: req.params.customerId });
 
-    // Tier system
     let tier = 'Bronze';
     if (customer.totalSpent >= 50000) tier = 'Platinum';
     else if (customer.totalSpent >= 20000) tier = 'Gold';
@@ -51,7 +53,8 @@ router.get('/:customerId', protect, async (req, res) => {
 // @access  Private
 router.get('/top/leaderboard', protect, async (req, res) => {
   try {
-    const topCustomers = await Customer.find({ visitCount: { $gt: 0 } })
+    const userScope = getUserScope(req);
+    const topCustomers = await Customer.find({ ...userScope, visitCount: { $gt: 0 } })
       .sort({ totalSpent: -1 })
       .limit(10);
 
@@ -78,13 +81,16 @@ router.get('/top/leaderboard', protect, async (req, res) => {
   }
 });
 
-// @desc    Manually adjust loyalty points (Admin)
+// @desc    Manually adjust loyalty points (Admin / Owner)
 // @route   POST /loyalty/:customerId/adjust
-// @access  Private (Admin)
+// @access  Private
 router.post('/:customerId/adjust', protect, async (req, res) => {
   try {
-    if (req.user.role.name !== 'Admin') {
-      return res.status(403).json({ message: 'Only Admin can adjust loyalty points' });
+    const customer = await Customer.findById(req.params.customerId);
+    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+
+    if (!verifyOwnership(req, customer)) {
+      return res.status(403).json({ message: 'Access Denied: You cannot adjust points for another user\'s customer' });
     }
 
     const { points, reason } = req.body;
@@ -92,13 +98,8 @@ router.post('/:customerId/adjust', protect, async (req, res) => {
       return res.status(400).json({ message: 'Points must be a number (positive to add, negative to deduct)' });
     }
 
-    const customer = await Customer.findByIdAndUpdate(
-      req.params.customerId,
-      { $inc: { loyaltyPoints: points } },
-      { new: true }
-    );
-
-    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+    customer.loyaltyPoints += points;
+    await customer.save();
 
     res.json({
       success: true,

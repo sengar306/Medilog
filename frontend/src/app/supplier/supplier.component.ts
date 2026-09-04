@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -36,6 +36,21 @@ import { ApiService } from '../core/services/api.service';
         <div class="alert alert-danger">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <span>{{ errorMessage() }}</span>
+        </div>
+      }
+
+      <!-- Chemist Selector Bar for Admin -->
+      @if (isAdmin()) {
+        <div class="glass-panel mb-3" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label class="form-label mb-0" style="white-space: nowrap; color: #38bdf8; font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
+            <select [(ngModel)]="selectedUserId" (change)="onChemistChange()" class="glass-input glass-select" style="width: 220px; padding: 6px 12px;">
+              <option value="all">🏬 All Chemists / Stores</option>
+              @for (user of chemistUsers(); track user._id) {
+                <option [value]="user._id">🏥 {{ user.chemistName || user.username }} ({{ user.username }})</option>
+              }
+            </select>
+          </div>
         </div>
       }
 
@@ -303,8 +318,9 @@ import { ApiService } from '../core/services/api.service';
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(4, 8, 18, 0.85);
       backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       z-index: 1000;
       display: flex;
       align-items: center;
@@ -317,6 +333,11 @@ import { ApiService } from '../core/services/api.service';
       max-height: 85vh;
       overflow-y: auto;
       padding: 32px;
+      background: rgba(13, 19, 34, 0.98) !important;
+      backdrop-filter: blur(16px) !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9) !important;
     }
     .modal-header {
       display: flex;
@@ -359,7 +380,16 @@ export class SupplierComponent implements OnInit {
   
   suppliers = signal<any[]>([]);
   purchases = signal<any[]>([]);
-  
+  chemistUsers = signal<any[]>([]);
+  selectedUserId = 'all';
+
+  isAdmin = computed(() => {
+    const user = this.apiService.currentUser();
+    if (!user) return false;
+    const rName = typeof user.role === 'string' ? user.role : (user.role?.name || '');
+    return rName === 'Admin' || rName === 'Super Admin';
+  });
+
   successMessage = signal<string | null>(null);
   errorMessage = signal<string | null>(null);
 
@@ -381,19 +411,31 @@ export class SupplierComponent implements OnInit {
     if (this.router.url.includes('purchases')) {
       this.activeTab.set('purchases');
     }
+    if (this.isAdmin()) {
+      this.apiService.getUsers().subscribe({
+        next: (users) => this.chemistUsers.set(users.filter((u: any) => u.role?.name !== 'Admin')),
+        error: (err) => console.error('Failed to load chemist users:', err)
+      });
+    }
     this.loadData();
   }
 
   loadData(): void {
-    this.apiService.getSuppliers().subscribe({
+    const userId = this.isAdmin() ? this.selectedUserId : undefined;
+
+    this.apiService.getSuppliers(userId).subscribe({
       next: (data) => this.suppliers.set(data),
       error: (err) => console.error(err)
     });
 
-    this.apiService.getPurchases().subscribe({
+    this.apiService.getPurchases(userId).subscribe({
       next: (data) => this.purchases.set(data),
       error: (err) => console.error(err)
     });
+  }
+
+  onChemistChange(): void {
+    this.loadData();
   }
 
   clearAlerts(): void {

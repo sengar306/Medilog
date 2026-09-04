@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 interface User {
   _id: string;
   username: string;
+  chemistName?: string;
   email: string;
   role: { _id: string; name: string } | string;
   isActive: boolean;
@@ -19,6 +20,7 @@ export const UserManagementScreen: React.FC = () => {
   // Add User Modal State
   const [isOpen, setIsOpen] = useState(false);
   const [username, setUsername] = useState('');
+  const [chemistName, setChemistName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<'Admin' | 'User'>('User');
@@ -35,8 +37,8 @@ export const UserManagementScreen: React.FC = () => {
       console.error(err);
       // Fallback mocks
       setUsers([
-        { _id: '1', username: 'admin', email: 'admin@medilog.com', role: 'Admin', isActive: true },
-        { _id: '2', username: 'user', email: 'user@medilog.com', role: 'User', isActive: true },
+        { _id: '1', username: 'admin', chemistName: 'Central Admin Store', email: 'admin@medilog.com', role: 'Admin', isActive: true },
+        { _id: '2', username: 'user', chemistName: 'City Care Pharmacy', email: 'user@medilog.com', role: 'User', isActive: true },
       ]);
     } finally {
       setLoading(false);
@@ -57,6 +59,25 @@ export const UserManagementScreen: React.FC = () => {
     }
   };
 
+  const handleDeleteUser = async (id: string, name: string) => {
+    Alert.alert('Delete User', `Are you sure you want to permanently delete user account '${name}'?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        onPress: async () => {
+          try {
+            const res = await apiClient.delete(`/users/${id}`);
+            Alert.alert('Success', res.data?.message || 'User deleted successfully.');
+            fetchUsers();
+          } catch (err: any) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to delete user.');
+          }
+        },
+        style: 'destructive',
+      },
+    ]);
+  };
+
   const handleAddUser = async () => {
     if (!username || !email || !password) {
       Alert.alert('Validation Error', 'Please fill in all fields.');
@@ -67,6 +88,7 @@ export const UserManagementScreen: React.FC = () => {
     try {
       await apiClient.post('/users', {
         username,
+        chemistName,
         email,
         password,
         roleName: selectedRole,
@@ -74,6 +96,7 @@ export const UserManagementScreen: React.FC = () => {
       Alert.alert('Success', 'User created successfully.');
       setIsOpen(false);
       setUsername('');
+      setChemistName('');
       setEmail('');
       setPassword('');
       fetchUsers();
@@ -88,7 +111,7 @@ export const UserManagementScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Title style={styles.title}>👥 User Administration</Title>
-        <Button mode="contained" icon="plus" onPress={() => setIsOpen(true)} buttonColor="#bb86fc" textColor="#000" compact>
+        <Button mode="contained" icon="plus" onPress={() => setIsOpen(true)} buttonColor="#3b82f6" textColor="#fff" compact>
           Add User
         </Button>
       </View>
@@ -104,8 +127,20 @@ export const UserManagementScreen: React.FC = () => {
             value={username}
             onChangeText={setUsername}
             style={styles.input}
-            activeOutlineColor="#bb86fc"
-            outlineColor="#333"
+            activeOutlineColor="#3b82f6"
+            outlineColor="#1e293b"
+            textColor="#fff"
+          />
+
+          <TextInput
+            label="Chemist / Store Name"
+            mode="outlined"
+            value={chemistName}
+            onChangeText={setChemistName}
+            placeholder="e.g. City Care Pharmacy"
+            style={styles.input}
+            activeOutlineColor="#3b82f6"
+            outlineColor="#1e293b"
             textColor="#fff"
           />
 
@@ -116,8 +151,8 @@ export const UserManagementScreen: React.FC = () => {
             value={email}
             onChangeText={setEmail}
             style={styles.input}
-            activeOutlineColor="#bb86fc"
-            outlineColor="#333"
+            activeOutlineColor="#3b82f6"
+            outlineColor="#1e293b"
             textColor="#fff"
           />
 
@@ -128,8 +163,8 @@ export const UserManagementScreen: React.FC = () => {
             value={password}
             onChangeText={setPassword}
             style={styles.input}
-            activeOutlineColor="#bb86fc"
-            outlineColor="#333"
+            activeOutlineColor="#3b82f6"
+            outlineColor="#1e293b"
             textColor="#fff"
           />
 
@@ -142,8 +177,8 @@ export const UserManagementScreen: React.FC = () => {
                   mode={selectedRole === r ? 'contained' : 'outlined'}
                   onPress={() => setSelectedRole(r)}
                   style={styles.roleBtn}
-                  buttonColor={selectedRole === r ? '#bb86fc' : undefined}
-                  textColor={selectedRole === r ? '#000' : '#bb86fc'}
+                  buttonColor={selectedRole === r ? '#3b82f6' : undefined}
+                  textColor={selectedRole === r ? '#fff' : '#3b82f6'}
                 >
                   {r}
                 </Button>
@@ -151,7 +186,7 @@ export const UserManagementScreen: React.FC = () => {
             </View>
           </View>
 
-          <Button mode="contained" onPress={handleAddUser} loading={saving} disabled={saving} style={styles.submitBtn} buttonColor="#bb86fc" textColor="#000">
+          <Button mode="contained" onPress={handleAddUser} loading={saving} disabled={saving} style={styles.submitBtn} buttonColor="#3b82f6" textColor="#fff">
             Create User
           </Button>
           <Button mode="text" onPress={() => setIsOpen(false)} textColor="#ff6b6b">
@@ -172,18 +207,27 @@ export const UserManagementScreen: React.FC = () => {
             <Card style={styles.card}>
               <Card.Content style={styles.cardContent}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.userName}>{item.username}</Text>
+                  <Text style={styles.userName}>{item.chemistName || item.username}</Text>
+                  <Text style={{ color: '#38bdf8', fontSize: 11 }}>Username: {item.username}</Text>
                   <Text style={styles.userEmail}>{item.email}</Text>
                   <Text style={styles.userRole}>Role: {roleName}</Text>
                 </View>
                 <View style={styles.row}>
-                  <Text style={[styles.statusText, item.isActive ? { color: '#4ade80' } : { color: '#ff6b6b' }]}>
-                    {item.isActive ? 'Active' : 'Inactive'}
-                  </Text>
-                  <Switch
-                    value={item.isActive}
-                    onValueChange={() => handleToggleActive(item._id, item.isActive)}
-                    color="#4ade80"
+                  <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
+                    <Text style={[styles.statusText, item.isActive ? { color: '#4ade80' } : { color: '#ff6b6b' }]}>
+                      {item.isActive ? 'Active' : 'Inactive'}
+                    </Text>
+                    <Switch
+                      value={item.isActive}
+                      onValueChange={() => handleToggleActive(item._id, item.isActive)}
+                      color="#4ade80"
+                    />
+                  </View>
+                  <IconButton
+                    icon="delete"
+                    iconColor="#ff6b6b"
+                    size={20}
+                    onPress={() => handleDeleteUser(item._id, item.username)}
                   />
                 </View>
               </Card.Content>

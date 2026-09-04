@@ -142,11 +142,90 @@ h1, h2, h3, h4, h5, h6 {
 
 .glass-select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  -webkit-appearance: none;
+  background-color: rgba(11, 16, 29, 0.85);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2338bdf8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 16px;
-  padding-right: 40px;
+  padding-right: 36px;
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+select, option {
+  font-family: inherit;
+}
+
+select option {
+  background-color: #0d1322 !important;
+  color: #f8fafc !important;
+  padding: 12px;
+  font-size: 0.9rem;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+/* Modal Overlay & Modal Dialog Utilities */
+.modal-overlay,
+.modal-backdrop,
+.glass-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(4, 8, 18, 0.85) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  z-index: 9999 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card,
+.modal-panel,
+.glass-modal,
+.glass-panel.modal-card,
+.glass-panel.modal-panel {
+  background: rgba(13, 19, 34, 0.98) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9) !important;
+  border-radius: 16px;
+  color: var(--text-primary);
+}
+
+/* Form Controls Fallback */
+.form-control {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.form-control::placeholder {
+  color: #64748b;
 }
 
 /* Buttons */
@@ -332,4 +411,97 @@ h1, h2, h3, h4, h5, h6 {
 .layout-grid {
   display: flex;
   min-height: 100vh;
+}
+
+/* Print Media Stylesheet */
+@media print {
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .sidebar,
+  .header-bar,
+  .no-print,
+  .footer-buttons,
+  .btn,
+  button,
+  .btn-primary,
+  .btn-glass {
+    display: none !important;
+  }
+
+  .layout-grid {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .main-column {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .content-area {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt-layout,
+  .receipt-layout *,
+  .receipt-card,
+  .receipt-card * {
+    visibility: visible;
+  }
+
+  .receipt-layout {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .receipt-card {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .logo-icon {
+    color: #8257e5 !important;
+  }
+  .receipt-header h2 {
+    color: #000000 !important;
+  }
+  .receipt-table th {
+    background-color: #8257e5 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-weight: bold !important;
+  }
+  .receipt-table td {
+    border-bottom: 1px solid #ddd !important;
+    color: #000000 !important;
+  }
+  .receipt-totals p,
+  .receipt-totals h3 {
+    color: #000000 !important;
+  }
 }

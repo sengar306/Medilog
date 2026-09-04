@@ -7,13 +7,18 @@ const Medicine = require('../models/Medicine');
 const StockTransaction = require('../models/StockTransaction');
 const { protect, authorize } = require('../middleware/auth');
 const { logAudit } = require('../utils/logger');
+const { getUserScope, verifyOwnership } = require('../utils/userScope');
 
 // @desc    Get all purchases
 // @route   GET /api/purchase/list
 // @access  Private
 router.get('/list', protect, async (req, res) => {
   try {
-    const purchases = await Purchase.find({}).populate('supplier').sort({ createdAt: -1 });
+    const query = getUserScope(req);
+    const purchases = await Purchase.find(query)
+      .populate('supplier')
+      .populate('user', 'username email chemistName')
+      .sort({ createdAt: -1 });
     res.json(purchases);
   } catch (error) {
     console.error(error);
@@ -26,10 +31,18 @@ router.get('/list', protect, async (req, res) => {
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
-    const purchase = await Purchase.findById(req.params.id).populate('supplier');
+    const purchase = await Purchase.findById(req.params.id)
+      .populate('supplier')
+      .populate('user', 'username email chemistName');
+
     if (!purchase) {
       return res.status(404).json({ message: 'Purchase record not found' });
     }
+
+    if (!verifyOwnership(req, purchase)) {
+      return res.status(403).json({ message: 'Access Denied: You do not own this purchase record' });
+    }
+
     const items = await PurchaseItem.find({ purchase: purchase._id }).populate('medicine');
     res.json({ purchase, items });
   } catch (error) {
@@ -49,6 +62,8 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
       return res.status(400).json({ message: 'Please provide supplierId, invoiceNumber, and items' });
     }
 
+    const targetUserId = ((req.user.role.name === 'Admin' || req.user.role.name === 'Super Admin') && req.body.userId) ? req.body.userId : req.user._id;
+
     // 1. Calculate totals
     let subTotal = 0;
     let gstTotal = 0;
@@ -66,6 +81,11 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
       const medicine = await Medicine.findById(medicineId);
       if (!medicine) {
         return res.status(400).json({ message: `Medicine not found: ${medicineId}` });
+      }
+
+      // Ensure user owns this medicine (or admin creating for user)
+      if (req.user.role.name !== 'Admin' && req.user.role.name !== 'Super Admin' && medicine.user && medicine.user.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: `Access Denied: Medicine '${medicine.name}' belongs to another user` });
       }
 
       const qty = parseFloat(quantity);
@@ -98,6 +118,7 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
     const purchase = new Purchase({
       supplier: supplierId,
       invoiceNumber,
+      user: targetUserId,
       invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
       subTotal: Math.round(subTotal * 100) / 100,
       gstTotal: Math.round(gstTotal * 100) / 100,
@@ -113,6 +134,7 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
       // Save PurchaseItem
       const pItem = new PurchaseItem({
         purchase: savedPurchase._id,
+        user: targetUserId,
         medicine: item.medicineId,
         batchNumber: item.batchNumber,
         expiryDate: item.expiryDate,
@@ -129,13 +151,13 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
       let batch = await InventoryBatch.findOne({
         medicine: item.medicineId,
         batchNumber: item.batchNumber,
+        user: targetUserId
       });
 
       let prevStock = 0;
       if (batch) {
         prevStock = batch.quantity;
         batch.quantity += item.quantity;
-        // Update batch parameters if they changed (optional, MRP/Expiry should match)
         batch.expiryDate = item.expiryDate;
         batch.purchaseRate = item.purchaseRate;
         batch.mrp = item.mrp;
@@ -145,6 +167,7 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
         batch = new InventoryBatch({
           medicine: item.medicineId,
           batchNumber: item.batchNumber,
+          user: targetUserId,
           expiryDate: item.expiryDate,
           quantity: item.quantity,
           initialQuantity: item.quantity,
@@ -167,7 +190,7 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
         referenceId: savedPurchase._id,
         referenceType: 'Purchase',
         remarks: `Purchased via Invoice #${invoiceNumber}`,
-        user: req.user._id,
+        user: targetUserId,
       });
       await transaction.save();
     }
@@ -184,7 +207,7 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
   } catch (error) {
     console.error(error);
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Duplicate purchase invoice for this supplier' });
+      return res.status(400).json({ message: 'Duplicate purchase invoice for this supplier and user' });
     }
     res.status(500).json({ message: 'Server error processing purchase' });
   }

@@ -40,6 +40,7 @@ coverage/
 /mobile/ios/build/
 /mobile/.expo/
 /mobile/.metro/
+/mobile/jdk17/
 *.keystore
 !/mobile/android/app/debug.keystore
 

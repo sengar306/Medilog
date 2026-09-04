@@ -23,7 +23,7 @@ router.get('/', protect, authorize('Admin'), async (req, res) => {
 // @access  Private (Admin)
 router.post('/', protect, authorize('Admin'), async (req, res) => {
   try {
-    const { username, email, password, roleName } = req.body;
+    const { username, email, password, roleName, chemistName } = req.body;
 
     if (!username || !email || !password || !roleName) {
       return res.status(400).json({ message: 'Please enter all required fields' });
@@ -43,7 +43,8 @@ router.post('/', protect, authorize('Admin'), async (req, res) => {
       username,
       email,
       password,
-      role: role._id
+      role: role._id,
+      chemistName: chemistName ? chemistName.trim() : username
     });
 
     await newUser.save();
@@ -51,7 +52,7 @@ router.post('/', protect, authorize('Admin'), async (req, res) => {
     await logAudit(
       'User Created',
       'User Management',
-      `Created user '${username}' with role '${roleName}'`,
+      `Created user '${username}' (${chemistName || username}) with role '${roleName}'`,
       req.user._id,
       req
     );
@@ -69,7 +70,7 @@ router.post('/', protect, authorize('Admin'), async (req, res) => {
 // @access  Private (Admin)
 router.put('/:id', protect, authorize('Admin'), async (req, res) => {
   try {
-    const { username, email, roleName, isActive } = req.body;
+    const { username, email, roleName, isActive, chemistName } = req.body;
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -79,6 +80,7 @@ router.put('/:id', protect, authorize('Admin'), async (req, res) => {
     if (username) user.username = username;
     if (email) user.email = email;
     if (isActive !== undefined) user.isActive = isActive;
+    if (chemistName !== undefined) user.chemistName = chemistName.trim();
 
     if (roleName) {
       const role = await Role.findOne({ name: roleName });

@@ -2,17 +2,18 @@
   "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
     "target": "esnext",
-    "module": "commonjs",
+    "module": "esnext",
     "lib": ["es6", "esnext.asynciterable"],
     "allowJs": true,
     "jsx": "react-native",
     "noEmit": true,
     "strict": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["react", "react-native"]
   },
   "exclude": [
     "node_modules",

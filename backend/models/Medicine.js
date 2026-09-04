@@ -4,12 +4,14 @@ const MedicineSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
   },
   code: {
     type: String,
-    unique: true,
     sparse: true,
   },
   strength: {
@@ -44,5 +46,8 @@ const MedicineSchema = new mongoose.Schema({
     trim: true
   }
 }, { timestamps: true });
+
+// Compound index to ensure medicine names are unique per user / chemist store
+MedicineSchema.index({ name: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('Medicine', MedicineSchema);

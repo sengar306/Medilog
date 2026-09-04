@@ -32,7 +32,7 @@ const sendOrderConfirmation = async ({ customerPhone, customerName, invoiceNumbe
       formData.append('type', 'document');
 
       console.log(`Uploading PDF invoice (${invoiceNumber}) to Meta Media API...`);
-      const uploadResponse = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/media`, {
+      const uploadResponse = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/media`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -91,7 +91,7 @@ const sendOrderConfirmation = async ({ customerPhone, customerName, invoiceNumbe
   }
 
   try {
-    const response = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

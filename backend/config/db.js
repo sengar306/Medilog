@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
 
 const connectDB = async () => {
+  try {
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+    console.log('✅ Google DNS configured for MongoDB Atlas resolution');
+  } catch (e) {
+    console.error('Failed to set custom DNS servers:', e.message);
+  }
+
   const mongoUri = process.env.MONGO_URI;
 
   if (!mongoUri) {

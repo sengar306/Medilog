@@ -15,6 +15,7 @@ import { PrescriptionComponent } from './prescriptions/prescription.component';
 import { PurchaseReturnComponent } from './supplier/purchase-return.component';
 import { UsersComponent } from './users/users.component';
 import { SettingsComponent } from './settings/settings.component';
+import { MedicineTransferComponent } from './inventory/medicine-transfer.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -27,6 +28,7 @@ export const routes: Routes = [
       { path: 'dashboard', component: DashboardComponent },
       { path: 'medicines', component: MedicineComponent },
       { path: 'inventory', component: InventoryComponent },
+      { path: 'transfers', component: MedicineTransferComponent },
       { path: 'suppliers', component: SupplierComponent },
       { path: 'purchases', component: SupplierComponent }, // Reuse SupplierComponent, logic handles tab
       { path: 'purchase-returns', component: PurchaseReturnComponent },

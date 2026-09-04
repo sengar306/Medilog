@@ -144,18 +144,19 @@ import { ApiService } from '../core/services/api.service';
             </div>
             <p class="panel-subtitle mb-4">Validate extracted values. Match parsed names to existing Database Medicines to avoid duplicates.</p>
 
-            <div class="glass-table-container">
+            <div class="glass-table-container mt-3">
               <table class="glass-table">
                 <thead>
                   <tr>
-                    <th style="width: 250px;">Scanned Item / Database Match</th>
-                    <th>Batch</th>
+                    <th>Medicine</th>
+                    <th>Batch Number</th>
                     <th>Expiry Date</th>
-                    <th>Qty</th>
-                    <th>Rate</th>
+                    <th>Quantity</th>
+                    <th>Free Qty</th>
+                    <th>Purchase Rate</th>
                     <th>MRP</th>
                     <th>GST %</th>
-                    <th>Total Cost</th>
+                    <th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -183,9 +184,10 @@ import { ApiService } from '../core/services/api.service';
                         </div>
                       </td>
 
-                      <td><input type="text" [(ngModel)]="item.batchNumber" class="table-input glass-input"></td>
+                      <td><input type="text" [(ngModel)]="item.batchNumber" class="table-input glass-input" style="width: 110px;"></td>
                       <td><input type="date" [(ngModel)]="item.expiryDate" class="table-input glass-input" style="width: 120px;"></td>
                       <td><input type="number" [(ngModel)]="item.quantity" class="table-input glass-input" style="width: 70px;"></td>
+                      <td><input type="number" [(ngModel)]="item.freeQuantity" class="table-input glass-input" style="width: 70px;"></td>
                       <td><input type="number" [(ngModel)]="item.purchaseRate" class="table-input glass-input" style="width: 80px;"></td>
                       <td><input type="number" [(ngModel)]="item.mrp" class="table-input glass-input" style="width: 80px;"></td>
                       <td><input type="number" [(ngModel)]="item.gstPercent" class="table-input glass-input" style="width: 60px;"></td>

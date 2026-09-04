@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import { Camera, CameraType, BarCodeScanningResult } from 'expo-camera';
 import { Button } from 'react-native-paper';
 
 interface ScannerProps {
@@ -9,14 +9,14 @@ interface ScannerProps {
 }
 
 export const ScannerView: React.FC<ScannerProps> = ({ onScan, onClose }) => {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission] = Camera.useCameraPermissions();
   const scannedRef = useRef(false);
 
   useEffect(() => {
     scannedRef.current = false;
   }, []);
 
-  const handleBarCodeScanned = ({ data }: BarcodeScanningResult) => {
+  const handleBarCodeScanned = ({ data }: BarCodeScanningResult) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
     onScan(data);
@@ -46,13 +46,13 @@ export const ScannerView: React.FC<ScannerProps> = ({ onScan, onClose }) => {
 
   return (
     <View style={styles.container}>
-      <CameraView
+      <Camera
         style={StyleSheet.absoluteFill}
-        facing="back"
-        barcodeScannerSettings={{
-          barcodeTypes: ['ean13', 'ean8', 'qr', 'code128', 'upc_a'],
+        type={CameraType.back}
+        barCodeScannerSettings={{
+          barCodeTypes: ['ean13', 'ean8', 'qr', 'code128', 'upc_a'],
         }}
-        onBarcodeScanned={handleBarCodeScanned}
+        onBarCodeScanned={handleBarCodeScanned}
       />
       <View style={styles.overlay}>
         <View style={styles.finder} />

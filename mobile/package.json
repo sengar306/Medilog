@@ -5,7 +5,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
+    "android": "set \"JAVA_HOME=%CD%\\jdk17\" && set \"ANDROID_HOME=C:\\Users\\vivek\\AppData\\Local\\Android\\Sdk\" && set \"PATH=%CD%\\jdk17\\bin;C:\\Users\\vivek\\AppData\\Local\\Android\\Sdk\\platform-tools;%PATH%\" && expo run:android",
     "ios": "expo run:ios",
     "build:android": "eas build --platform android --profile preview",
     "test": "jest",

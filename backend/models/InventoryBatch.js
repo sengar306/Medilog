@@ -45,10 +45,14 @@ const InventoryBatchSchema = new mongoose.Schema({
   supplier: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Supplier',
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
   }
 }, { timestamps: true });
 
-// Compound index to ensure batch numbers are unique per medicine
-InventoryBatchSchema.index({ medicine: 1, batchNumber: 1 }, { unique: true });
+// Compound index to ensure batch numbers are unique per medicine per chemist user
+InventoryBatchSchema.index({ medicine: 1, batchNumber: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('InventoryBatch', InventoryBatchSchema);

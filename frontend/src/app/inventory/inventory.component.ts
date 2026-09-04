@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
@@ -28,6 +28,37 @@ import { ApiService } from '../core/services/api.service';
         </div>
       </div>
 
+      <!-- Search & Chemist Selector Bar -->
+      <div class="glass-panel mb-3" style="display: flex; align-items: center; gap: 15px; padding: 12px 16px; flex-wrap: wrap;">
+        <div style="flex: 1; display: flex; align-items: center; gap: 10px; min-width: 250px;">
+          <i class="bi bi-search" style="font-size: 1.1rem; color: var(--text-secondary);"></i>
+          <input 
+            type="text" 
+            [value]="searchQuery()" 
+            (input)="updateSearch($event)" 
+            placeholder="Filter batches, medicine name, generic formula, batch number, transaction, or chemist..." 
+            style="flex: 1; border: none; outline: none; background: transparent; color: #fff; font-size: 1rem;" 
+          />
+          @if (searchQuery()) {
+            <button (click)="clearSearch()" style="border: none; background: transparent; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 4px;">
+              <i class="bi bi-x-circle-fill"></i>
+            </button>
+          }
+        </div>
+
+        @if (isAdmin()) {
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label class="form-label mb-0" style="white-space: nowrap; color: #38bdf8; font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
+            <select [(ngModel)]="selectedUserId" (change)="onChemistChange()" class="glass-input glass-select" style="width: 200px; padding: 6px 12px;">
+              <option value="all">🏬 All Chemists / Stores</option>
+              @for (user of chemistUsers(); track user._id) {
+                <option [value]="user._id">🏥 {{ user.chemistName || user.username }} ({{ user.username }})</option>
+              }
+            </select>
+          </div>
+        }
+      </div>
+
       <!-- Tab 1: Batches in Stock -->
       @if (activeTab() === 'batches') {
         <div class="glass-panel">
@@ -49,6 +80,7 @@ import { ApiService } from '../core/services/api.service';
               <thead>
                 <tr>
                   <th>Medicine</th>
+                  <th>Chemist Store</th>
                   <th>Batch Number</th>
                   <th>Quantity Left</th>
                   <th>Expiry Date</th>
@@ -60,9 +92,14 @@ import { ApiService } from '../core/services/api.service';
                 </tr>
               </thead>
               <tbody>
-                @for (batch of batches(); track batch._id) {
+                @for (batch of filteredBatches(); track batch._id) {
                   <tr>
-                    <td><strong>{{ batch.medicine.name }}</strong> <small class="text-secondary">({{ batch.medicine.strength }})</small></td>
+                    <td><strong>{{ batch.medicine?.name }}</strong> <small class="text-secondary">({{ batch.medicine?.strength }})</small></td>
+                    <td>
+                      <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #7dd3fc;">
+                        <i class="bi bi-shop"></i> {{ batch.chemistName || batch.user?.chemistName || batch.medicine?.user?.chemistName || 'Central Store' }}
+                      </span>
+                    </td>
                     <td><code>{{ batch.batchNumber }}</code></td>
                     <td><strong style="color: var(--primary);">{{ batch.quantity }}</strong> / {{ batch.initialQuantity }}</td>
                     <td>{{ batch.expiryDate | date:'mediumDate' }}</td>
@@ -74,7 +111,7 @@ import { ApiService } from '../core/services/api.service';
                     <td>₹{{ batch.purchaseRate | number:'1.2-2' }}</td>
                     <td>₹{{ batch.mrp | number:'1.2-2' }}</td>
                     <td>
-                      @if (batch.medicine.rack) {
+                      @if (batch.medicine?.rack) {
                         <span class="badge badge-info"><i class="bi bi-geo-alt"></i> {{ batch.medicine.rack.name }}</span>
                       } @else {
                         <span class="text-muted">N/A</span>
@@ -84,7 +121,7 @@ import { ApiService } from '../core/services/api.service';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="9" class="text-center text-muted">No inventory batches matching selection.</td>
+                    <td colspan="10" class="text-center text-muted">No inventory batches matching selection.</td>
                   </tr>
                 }
               </tbody>
@@ -115,7 +152,7 @@ import { ApiService } from '../core/services/api.service';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (item of lowStock(); track item.medicine._id) {
+                  @for (item of filteredLowStock(); track item.medicine._id) {
                     <tr>
                       <td><strong>{{ item.medicine.name }}</strong> <small>({{ item.medicine.strength }})</small></td>
                       <td><span class="badge badge-danger">{{ item.currentStock }}</span></td>
@@ -157,7 +194,7 @@ import { ApiService } from '../core/services/api.service';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (batch of nearExpiry(); track batch._id) {
+                  @for (batch of filteredNearExpiry(); track batch._id) {
                     <tr>
                       <td><strong>{{ batch.medicine.name }}</strong></td>
                       <td><code>{{ batch.batchNumber }}</code></td>
@@ -200,7 +237,7 @@ import { ApiService } from '../core/services/api.service';
                 </tr>
               </thead>
               <tbody>
-                @for (tx of ledger(); track tx._id) {
+                @for (tx of filteredLedger(); track tx._id) {
                   <tr>
                     <td>{{ tx.createdAt | date:'MMM d, yyyy, h:mm a' }}</td>
                     <td><strong>{{ tx.medicine ? tx.medicine.name : 'Unknown' }}</strong></td>
@@ -305,9 +342,93 @@ export class InventoryComponent implements OnInit {
   nearExpiry = signal<any[]>([]);
   ledger = signal<any[]>([]);
   
+  // Multi-tenancy & Chemist filter for Admin
+  isAdmin = signal<boolean>(false);
+  chemistUsers = signal<any[]>([]);
+  selectedUserId = 'all';
+
   batchFilter = 'active';
+  searchQuery = signal('');
+
+  updateSearch(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.searchQuery.set(input.value);
+  }
+
+  clearSearch(): void {
+    this.searchQuery.set('');
+  }
+
+  filteredBatches = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const list = this.batches();
+    if (!query) return list;
+    return list.filter(b => 
+      (b.medicine?.name && b.medicine.name.toLowerCase().includes(query)) ||
+      (b.medicine?.genericName && b.medicine.genericName.toLowerCase().includes(query)) ||
+      (b.batchNumber && b.batchNumber.toLowerCase().includes(query)) ||
+      (b.supplier?.name && b.supplier.name.toLowerCase().includes(query)) ||
+      (b.user?.chemistName && b.user.chemistName.toLowerCase().includes(query)) ||
+      (b.medicine?.user?.chemistName && b.medicine.user.chemistName.toLowerCase().includes(query))
+    );
+  });
+
+  filteredLowStock = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const list = this.lowStock();
+    if (!query) return list;
+    return list.filter(item => 
+      (item.medicine?.name && item.medicine.name.toLowerCase().includes(query)) ||
+      (item.medicine?.genericName && item.medicine.genericName.toLowerCase().includes(query)) ||
+      (item.medicine?.user?.chemistName && item.medicine.user.chemistName.toLowerCase().includes(query))
+    );
+  });
+
+  filteredNearExpiry = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const list = this.nearExpiry();
+    if (!query) return list;
+    return list.filter(b => 
+      (b.medicine?.name && b.medicine.name.toLowerCase().includes(query)) ||
+      (b.medicine?.genericName && b.medicine.genericName.toLowerCase().includes(query)) ||
+      (b.batchNumber && b.batchNumber.toLowerCase().includes(query)) ||
+      (b.user?.chemistName && b.user.chemistName.toLowerCase().includes(query))
+    );
+  });
+
+  filteredLedger = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const list = this.ledger();
+    if (!query) return list;
+    return list.filter(tx => 
+      (tx.medicine?.name && tx.medicine.name.toLowerCase().includes(query)) ||
+      (tx.batchNumber && tx.batchNumber.toLowerCase().includes(query)) ||
+      (tx.remarks && tx.remarks.toLowerCase().includes(query)) ||
+      (tx.user?.username && tx.user.username.toLowerCase().includes(query)) ||
+      (tx.user?.chemistName && tx.user.chemistName.toLowerCase().includes(query)) ||
+      (tx.transactionType && tx.transactionType.toLowerCase().includes(query))
+    );
+  });
 
   ngOnInit(): void {
+    this.checkAdminStatus();
+    this.loadBatches();
+    this.loadAlerts();
+    this.loadLedger();
+  }
+
+  checkAdminStatus(): void {
+    const isAdm = this.apiService.hasRole(['Admin']);
+    this.isAdmin.set(isAdm);
+    if (isAdm) {
+      this.apiService.getUsers().subscribe({
+        next: (users) => this.chemistUsers.set(users),
+        error: (err) => console.error('Failed to load chemist users', err)
+      });
+    }
+  }
+
+  onChemistChange(): void {
     this.loadBatches();
     this.loadAlerts();
     this.loadLedger();
@@ -321,26 +442,29 @@ export class InventoryComponent implements OnInit {
   }
 
   loadBatches(): void {
-    this.apiService.getInventory(this.batchFilter).subscribe({
+    const uId = this.isAdmin() && this.selectedUserId !== 'all' ? this.selectedUserId : undefined;
+    this.apiService.getInventory(this.batchFilter, undefined, undefined, uId).subscribe({
       next: (data) => this.batches.set(data),
       error: (err) => console.error(err)
     });
   }
 
   loadAlerts(): void {
-    this.apiService.getLowStock().subscribe({
+    const uId = this.isAdmin() && this.selectedUserId !== 'all' ? this.selectedUserId : undefined;
+    this.apiService.getLowStock(uId).subscribe({
       next: (data) => this.lowStock.set(data),
       error: (err) => console.error(err)
     });
 
-    this.apiService.getInventory('near-expiry').subscribe({
+    this.apiService.getInventory('near-expiry', undefined, undefined, uId).subscribe({
       next: (data) => this.nearExpiry.set(data),
       error: (err) => console.error(err)
     });
   }
 
   loadLedger(): void {
-    this.apiService.getStockLedger().subscribe({
+    const uId = this.isAdmin() && this.selectedUserId !== 'all' ? this.selectedUserId : undefined;
+    this.apiService.getStockLedger(undefined, uId).subscribe({
       next: (data) => this.ledger.set(data),
       error: (err) => console.error(err)
     });

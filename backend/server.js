@@ -33,6 +33,7 @@ const notificationRoutes = require('./routes/notifications');
 const loyaltyRoutes = require('./routes/loyalty');
 const purchaseReturnRoutes = require('./routes/purchase-return');
 const userRoutes = require('./routes/users');
+const transferRoutes = require('./routes/transfer');
 
 // Register Routes (Mount exactly as specified in the PDF)
 app.use('/auth', authRoutes);
@@ -51,11 +52,68 @@ app.use('/notifications', notificationRoutes);
 app.use('/loyalty', loyaltyRoutes);
 app.use('/purchase-returns', purchaseReturnRoutes);
 app.use('/users', userRoutes);
+app.use('/transfers', transferRoutes);
 
 // Root route
 app.get('/', (req, res) => {
   res.json({ message: 'MediLog API is running' });
 });
+
+// PDF Invoice Download Route (public access for client WhatsApp links)
+const handlePdfDownload = async (req, res) => {
+  try {
+    const { invoiceNumber } = req.params;
+    const Sale = require('./models/Sale');
+    const SaleItem = require('./models/SaleItem');
+    const { generateInvoicePDF } = require('./utils/pdfGenerator');
+    const fs = require('fs');
+    
+    const sale = await Sale.findOne({ invoiceNumber }).populate('customer').populate('cashier');
+    if (!sale) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    const items = await SaleItem.find({ sale: sale._id }).populate('medicine');
+    
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const pdfPath = path.join(tempDir, `invoice-${invoiceNumber}.pdf`);
+
+    const chemistId = (sale.user?._id || sale.user || sale.cashier?._id || sale.cashier);
+    const chemistUser = chemistId ? await User.findById(chemistId) : null;
+    const userObj = chemistUser ? (chemistUser.toObject ? chemistUser.toObject() : chemistUser) : (sale.cashier || {});
+    
+    // Generate beautiful PDF using the cashier user profile
+    await generateInvoicePDF(sale, items, pdfPath, userObj);
+    
+    // Check if file exists before streaming
+    if (!fs.existsSync(pdfPath)) {
+      return res.status(500).json({ message: 'Failed to generate PDF' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Invoice_${invoiceNumber}.pdf"`);
+    
+    const stream = fs.createReadStream(pdfPath);
+    stream.pipe(res);
+    
+    stream.on('end', () => {
+      try {
+        fs.unlinkSync(pdfPath);
+      } catch (cleanupErr) {
+        console.error('Failed to delete temp PDF file:', cleanupErr);
+      }
+    });
+  } catch (error) {
+    console.error('Error generating and sending PDF invoice:', error);
+    res.status(500).json({ message: 'Server error generating PDF invoice' });
+  }
+};
+
+app.get('/api/v1/invoices/:invoiceNumber/pdf', handlePdfDownload);
+app.get('/invoices/:invoiceNumber/pdf', handlePdfDownload);
 
 // Seed default roles and users
 const seedDB = async () => {
@@ -84,8 +142,8 @@ const seedDB = async () => {
     const userRole = await Role.findOne({ name: 'User' });
 
     const usersToSeed = [
-      { username: 'admin', email: 'admin@medilog.com', password: 'admin123', role: adminRole._id },
-      { username: 'user', email: 'user@medilog.com', password: 'user123', role: userRole._id }
+      { username: 'admin', email: 'admin@medilog.com', password: 'admin123', role: adminRole._id, chemistName: 'Central Admin Store' },
+      { username: 'user', email: 'user@medilog.com', password: 'user123', role: userRole._id, chemistName: 'City Care Pharmacy' }
     ];
 
     for (const u of usersToSeed) {
@@ -93,6 +151,9 @@ const seedDB = async () => {
       if (!exists) {
         await new User(u).save();
         console.log(`User seeded: ${u.username} (${u.password})`);
+      } else if (!exists.chemistName) {
+        exists.chemistName = u.chemistName;
+        await exists.save();
       }
     }
 

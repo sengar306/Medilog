@@ -6,6 +6,10 @@ const PurchaseSchema = new mongoose.Schema({
     ref: 'Supplier',
     required: true,
   },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
   invoiceNumber: {
     type: String,
     required: true,
@@ -41,7 +45,7 @@ const PurchaseSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Compound index to ensure invoice numbers are unique per supplier
-PurchaseSchema.index({ supplier: 1, invoiceNumber: 1 }, { unique: true });
+// Compound index to ensure invoice numbers are unique per supplier per user
+PurchaseSchema.index({ supplier: 1, invoiceNumber: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('Purchase', PurchaseSchema);

@@ -4,8 +4,11 @@ const SupplierSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
   },
   contactPerson: {
     type: String,
@@ -28,5 +31,7 @@ const SupplierSchema = new mongoose.Schema({
     trim: true,
   }
 }, { timestamps: true });
+
+SupplierSchema.index({ name: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('Supplier', SupplierSchema);

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
@@ -38,6 +38,21 @@ import { ApiService } from '../core/services/api.service';
         </div>
       }
 
+      <!-- Chemist Selector Bar for Admin -->
+      @if (isAdmin()) {
+        <div class="glass-panel mb-3" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label class="form-label mb-0" style="white-space: nowrap; color: #38bdf8; font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
+            <select [(ngModel)]="selectedUserId" (change)="onChemistChange()" class="glass-input glass-select" style="width: 220px; padding: 6px 12px;">
+              <option value="all">🏬 All Chemists / Stores</option>
+              @for (user of chemistUsers(); track user._id) {
+                <option [value]="user._id">🏥 {{ user.chemistName || user.username }} ({{ user.username }})</option>
+              }
+            </select>
+          </div>
+        </div>
+      }
+
       <div class="split-view">
         <!-- Main List Column -->
         <div class="list-column glass-panel">
@@ -58,6 +73,7 @@ import { ApiService } from '../core/services/api.service';
                     <th>Generic Name</th>
                     <th>Rack Location</th>
                     <th>Min Level</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -70,16 +86,25 @@ import { ApiService } from '../core/services/api.service';
                       <td><em>{{ med.genericName || 'N/A' }}</em></td>
                       <td>
                         @if (med.rack) {
-                          <span class="badge badge-success"><i class="bi bi-geo-alt"></i> {{ med.rack.name }}</span>
+                          <span class="badge badge-success" (click)="openMapRackModal(med)" style="cursor: pointer;" title="Click to change storage rack">
+                            <i class="bi bi-geo-alt-fill"></i> {{ med.rack.name || med.rack }}
+                          </span>
                         } @else {
-                          <span class="text-muted">Unassigned</span>
+                          <span class="badge" (click)="openMapRackModal(med)" style="cursor: pointer; background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid var(--glass-border);" title="Click to assign storage rack">
+                            Unassigned
+                          </span>
                         }
                       </td>
                       <td>{{ med.minStockLevel }}</td>
+                      <td>
+                        <button (click)="openMapRackModal(med)" class="btn btn-sm btn-primary-glass" style="padding: 4px 10px; font-size: 0.8rem;" title="Map Storage Rack">
+                          <i class="bi bi-geo-alt"></i> Map Rack
+                        </button>
+                      </td>
                     </tr>
                   } @empty {
                     <tr>
-                      <td colspan="7" class="text-center text-muted">No medicines registered yet. Use the registration form to add one.</td>
+                      <td colspan="8" class="text-center text-muted">No medicines registered yet. Use the registration form to add one.</td>
                     </tr>
                   }
                 </tbody>
@@ -196,6 +221,61 @@ import { ApiService } from '../core/services/api.service';
           }
         </div>
       </div>
+
+      <!-- Map Storage Rack Modal -->
+      @if (showMapRackModal()) {
+        <div class="modal-overlay" (click)="closeMapRackModal()">
+          <div class="modal-card" (click)="$event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px;">
+              <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="bi bi-geo-alt-fill" style="color: #38bdf8;"></i> Map Warehouse Storage Rack
+              </h3>
+              <button (click)="closeMapRackModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer;">✕</button>
+            </div>
+
+            <div class="mt-3">
+              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Configure storage rack location for <strong style="color: #fff;">{{ targetMedicineForMapping()?.name }}</strong> 
+                <span class="text-secondary" *ngIf="targetMedicineForMapping()?.strength"> ({{ targetMedicineForMapping()?.strength }})</span>.
+              </p>
+
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label class="form-label" style="margin-bottom: 0;">Select Storage Rack Location *</label>
+                  <button (click)="toggleInlineRackCreation()" type="button" class="btn-link-sm" style="background: none; border: none; color: #38bdf8; font-size: 0.8rem; cursor: pointer; text-decoration: underline;">
+                    {{ isAddingNewRack() ? 'Cancel' : '+ Add New Storage Rack' }}
+                  </button>
+                </div>
+
+                @if (!isAddingNewRack()) {
+                  <select [(ngModel)]="selectedRackForMapping" class="glass-input glass-select" style="font-size: 0.95rem; padding: 10px 16px;">
+                    <option value="null">-- Unassigned (No Rack Assigned) --</option>
+                    @for (rack of racks(); track rack._id) {
+                      <option [value]="rack._id">📍 {{ rack.name }} {{ rack.description ? '(' + rack.description + ')' : '' }}</option>
+                    }
+                  </select>
+                } @else {
+                  <!-- Inline New Rack Form -->
+                  <div class="inline-rack-form" style="background: rgba(0,0,0,0.3); border: 1px dashed rgba(56, 189, 248, 0.4); padding: 12px; border-radius: 8px;">
+                    <input type="text" [(ngModel)]="newRackName" placeholder="New Rack Name (e.g. Rack A1, Shelf 3)" class="glass-input mb-2" style="font-size: 0.88rem;">
+                    <input type="text" [(ngModel)]="newRackDescription" placeholder="Description (Optional)" class="glass-input mb-2" style="font-size: 0.88rem;">
+                    <button (click)="saveInlineRack()" [disabled]="!newRackName.trim()" type="button" class="btn btn-sm btn-primary w-100">
+                      <i class="bi bi-plus-circle-fill"></i> Create & Select Rack
+                    </button>
+                  </div>
+                }
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                <button (click)="closeMapRackModal()" type="button" class="btn btn-glass">Cancel</button>
+                <button (click)="saveRackMapping()" type="button" class="btn btn-primary">
+                  <i class="bi bi-check-circle-fill"></i> Save Mapping
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -239,6 +319,8 @@ import { ApiService } from '../core/services/api.service';
     .w-100 { width: 100%; }
     .mt-3 { margin-top: 16px; }
     .mt-2 { margin-top: 8px; }
+    .mb-2 { margin-bottom: 8px; }
+    .ml-1 { margin-left: 4px; }
     
     .alert {
       display: flex;
@@ -258,6 +340,15 @@ import { ApiService } from '../core/services/api.service';
       border: 1px solid rgba(239, 68, 68, 0.2);
       color: #f87171;
     }
+    .btn-primary-glass {
+      background: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      color: #60a5fa;
+    }
+    .btn-primary-glass:hover {
+      background: rgba(37, 99, 235, 0.3);
+      color: #fff;
+    }
   `]
 })
 export class MedicineComponent implements OnInit {
@@ -267,9 +358,26 @@ export class MedicineComponent implements OnInit {
   
   medicines = signal<any[]>([]);
   racks = signal<any[]>([]);
-  
+  chemistUsers = signal<any[]>([]);
+  selectedUserId = 'all';
+
+  isAdmin = computed(() => {
+    const user = this.apiService.currentUser();
+    if (!user) return false;
+    const rName = typeof user.role === 'string' ? user.role : (user.role?.name || '');
+    return rName === 'Admin' || rName === 'Super Admin';
+  });
+
   successMessage = signal<string | null>(null);
   errorMessage = signal<string | null>(null);
+
+  // Map Rack Modal State
+  showMapRackModal = signal<boolean>(false);
+  targetMedicineForMapping = signal<any>(null);
+  selectedRackForMapping: string = 'null';
+  isAddingNewRack = signal<boolean>(false);
+  newRackName: string = '';
+  newRackDescription: string = '';
 
   // Forms
   medForm = {
@@ -288,24 +396,95 @@ export class MedicineComponent implements OnInit {
   };
 
   ngOnInit(): void {
+    if (this.isAdmin()) {
+      this.apiService.getUsers().subscribe({
+        next: (users) => this.chemistUsers.set(users.filter((u: any) => u.role?.name !== 'Admin')),
+        error: (err) => console.error('Failed to load chemist users:', err)
+      });
+    }
     this.loadData();
   }
 
   loadData(): void {
-    this.apiService.getMedicines().subscribe({
+    const userId = this.isAdmin() ? this.selectedUserId : undefined;
+
+    this.apiService.getMedicines(userId).subscribe({
       next: (data) => this.medicines.set(data),
       error: (err) => console.error(err)
     });
 
-    this.apiService.getRacks().subscribe({
+    this.apiService.getRacks(userId).subscribe({
       next: (data) => this.racks.set(data),
       error: (err) => console.error(err)
     });
   }
 
+  onChemistChange(): void {
+    this.loadData();
+  }
+
   clearAlerts(): void {
     this.successMessage.set(null);
     this.errorMessage.set(null);
+  }
+
+  // --- Map Rack Modal Methods ---
+  openMapRackModal(med: any): void {
+    this.targetMedicineForMapping.set(med);
+    this.selectedRackForMapping = med.rack ? (med.rack._id || med.rack) : 'null';
+    this.isAddingNewRack.set(false);
+    this.newRackName = '';
+    this.newRackDescription = '';
+    this.showMapRackModal.set(true);
+  }
+
+  closeMapRackModal(): void {
+    this.showMapRackModal.set(false);
+    this.targetMedicineForMapping.set(null);
+    this.isAddingNewRack.set(false);
+  }
+
+  toggleInlineRackCreation(): void {
+    this.isAddingNewRack.update(v => !v);
+  }
+
+  saveInlineRack(): void {
+    if (!this.newRackName.trim()) return;
+    this.clearAlerts();
+
+    this.apiService.createRack({ name: this.newRackName.trim(), description: this.newRackDescription }).subscribe({
+      next: (created) => {
+        this.racks.update(list => [...list, created]);
+        this.selectedRackForMapping = created._id;
+        this.isAddingNewRack.set(false);
+        this.newRackName = '';
+        this.newRackDescription = '';
+        this.successMessage.set(`New rack '${created.name}' created! Click 'Save Mapping' to assign to medicine.`);
+      },
+      error: (err) => {
+        this.errorMessage.set(err.error?.message || 'Failed to create rack');
+      }
+    });
+  }
+
+  saveRackMapping(): void {
+    const med = this.targetMedicineForMapping();
+    if (!med) return;
+    this.clearAlerts();
+
+    const newRackId = this.selectedRackForMapping === 'null' ? null : this.selectedRackForMapping;
+
+    this.apiService.updateMedicine(med._id, { rackId: newRackId }).subscribe({
+      next: (updated) => {
+        const rackName = updated.rack ? updated.rack.name : 'Unassigned';
+        this.successMessage.set(`Rack location for '${med.name}' successfully mapped to: ${rackName}`);
+        this.closeMapRackModal();
+        this.loadData();
+      },
+      error: (err) => {
+        this.errorMessage.set(err.error?.message || 'Failed to update rack mapping');
+      }
+    });
   }
 
   handleAddMedicine(): void {

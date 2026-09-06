@@ -243,11 +243,20 @@ const generateInvoicePDF = async (sale, items = [], outputPath, user = {}) => {
         const qty = item.quantity || 0;
         const mrp = item.mrp || 0;
         const rate = item.rate || item.mrp || 0;
-        const discP = item.discountPercent || 0;
-        const amount = item.totalAmount || (qty * rate);
+        
+        const grossSubtotal = qty * rate;
+        let discP = (item.discountPercent !== undefined && item.discountPercent !== null && item.discountPercent > 0)
+          ? item.discountPercent
+          : ((sale.subTotal && sale.subTotal > 0 && sale.discountAmount) ? (sale.discountAmount / sale.subTotal) * 100 : 0);
+
+        let itemDiscAmt = (item.discountAmount !== undefined && item.discountAmount !== null && item.discountAmount > 0)
+          ? item.discountAmount
+          : (grossSubtotal * (discP / 100));
+
+        const taxableValue = Math.max(0, grossSubtotal - itemDiscAmt);
 
         totalQtySum += qty;
-        totalTaxableSum += amount;
+        totalTaxableSum += taxableValue;
 
         doc.text((index + 1).toString(), 32, currentY + 4, { width: 28, align: 'center' });
         doc.text(name, 64, currentY + 4, { width: 155, height: 12 });
@@ -257,7 +266,7 @@ const generateInvoicePDF = async (sale, items = [], outputPath, user = {}) => {
         doc.text(mrp.toFixed(2), 366, currentY + 4, { width: 45, align: 'right' });
         doc.text(rate.toFixed(2), 414, currentY + 4, { width: 45, align: 'right' });
         doc.text(discP.toFixed(1), 462, currentY + 4, { width: 40, align: 'right' });
-        doc.text(amount.toFixed(2), 505, currentY + 4, { width: 55, align: 'right' });
+        doc.text(taxableValue.toFixed(2), 505, currentY + 4, { width: 55, align: 'right' });
 
         currentY += 16;
       });
@@ -280,7 +289,7 @@ const generateInvoicePDF = async (sale, items = [], outputPath, user = {}) => {
       doc.fillColor(darkText).fontSize(8).font('Helvetica-Bold');
       doc.text('Total', 280, tableBottom + 4, { width: 45, align: 'right' });
       doc.text(totalQtySum.toString(), 328, tableBottom + 4, { width: 35, align: 'center' });
-      doc.text(`Rs. ${(sale.subTotal || totalTaxableSum).toFixed(2)}`, 495, tableBottom + 4, { width: 65, align: 'right' });
+      doc.text(`Rs. ${totalTaxableSum.toFixed(2)}`, 495, tableBottom + 4, { width: 65, align: 'right' });
 
       currentY = tableBottom + 20;
 
@@ -291,7 +300,7 @@ const generateInvoicePDF = async (sale, items = [], outputPath, user = {}) => {
       }
 
       // --- 6. Amount in Words ---
-      const grandTotalVal = sale.totalAmount || totalTaxableSum;
+      const grandTotalVal = sale.totalAmount !== undefined ? sale.totalAmount : totalTaxableSum;
       doc.fillColor(mutedText).fontSize(8).font('Helvetica');
       doc.text('Total in words', 30, currentY);
       doc.fillColor(darkText).fontSize(8.5).font('Helvetica-Bold');
@@ -303,23 +312,27 @@ const generateInvoicePDF = async (sale, items = [], outputPath, user = {}) => {
       const gstVal = sale.gstTotal || 0;
       const cgstVal = gstVal / 2;
       const sgstVal = gstVal / 2;
+      const discountVal = sale.discountAmount || 0;
+      const grossSubTotalVal = sale.subTotal || (totalTaxableSum + discountVal);
 
       doc.rect(30, currentY, 535, 30).strokeColor(borderGreen).lineWidth(1).stroke();
       doc.rect(30, currentY, 535, 14).fill(secondaryBg);
       
       doc.fillColor(darkText).fontSize(7.5).font('Helvetica-Bold');
-      doc.text('Taxable Value', 35, currentY + 3, { width: 100 });
-      doc.text('CGST (6%)', 160, currentY + 3, { width: 100 });
-      doc.text('SGST (6%)', 280, currentY + 3, { width: 100 });
-      doc.text('Total Tax', 400, currentY + 3, { width: 100, align: 'right' });
-      doc.text('Grand Total', 495, currentY + 3, { width: 65, align: 'right' });
+      doc.text('Taxable Value', 35, currentY + 3, { width: 80 });
+      doc.text('CGST', 120, currentY + 3, { width: 65 });
+      doc.text('SGST', 190, currentY + 3, { width: 65 });
+      doc.text('Total Tax', 260, currentY + 3, { width: 70, align: 'right' });
+      doc.text('Less: Discount', 335, currentY + 3, { width: 90, align: 'right' });
+      doc.text('Grand Total', 430, currentY + 3, { width: 130, align: 'right' });
 
       doc.font('Helvetica').fontSize(8);
-      doc.text(`Rs. ${(sale.subTotal || totalTaxableSum).toFixed(2)}`, 35, currentY + 17);
-      doc.text(`Rs. ${cgstVal.toFixed(2)}`, 160, currentY + 17);
-      doc.text(`Rs. ${sgstVal.toFixed(2)}`, 280, currentY + 17);
-      doc.text(`Rs. ${gstVal.toFixed(2)}`, 400, currentY + 17, { width: 100, align: 'right' });
-      doc.font('Helvetica-Bold').text(`Rs. ${grandTotalVal.toFixed(2)}`, 495, currentY + 17, { width: 65, align: 'right' });
+      doc.text(`Rs. ${grossSubTotalVal.toFixed(2)}`, 35, currentY + 17);
+      doc.text(`Rs. ${cgstVal.toFixed(2)}`, 120, currentY + 17);
+      doc.text(`Rs. ${sgstVal.toFixed(2)}`, 190, currentY + 17);
+      doc.text(`Rs. ${gstVal.toFixed(2)}`, 260, currentY + 17, { width: 70, align: 'right' });
+      doc.text(`-Rs. ${discountVal.toFixed(2)}`, 335, currentY + 17, { width: 90, align: 'right' });
+      doc.font('Helvetica-Bold').text(`Rs. ${grandTotalVal.toFixed(2)}`, 430, currentY + 17, { width: 130, align: 'right' });
 
       currentY += 35;
 

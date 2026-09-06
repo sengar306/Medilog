@@ -115,10 +115,27 @@ import { ApiService } from '../core/services/api.service';
                   <span>Subtotal:</span>
                   <span>₹{{ parsedResult().totals.subTotal | number:'1.2-2' }}</span>
                 </div>
-                <div class="totals-row">
+                
+                <div class="totals-row align-items-center mt-1" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>Total Discount:</span>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="color: #a855f7; font-weight: bold;">-₹</span>
+                    <input type="number" 
+                           [(ngModel)]="parsedResult().totals.totalDiscount" 
+                           (input)="recalculateTotals()"
+                           name="totalDisc"
+                           class="glass-input text-right" 
+                           style="width: 100px; height: 30px; padding: 2px 8px; font-size: 0.9rem; font-weight: 600;" 
+                           min="0"
+                           placeholder="0.00">
+                  </div>
+                </div>
+
+                <div class="totals-row mt-1">
                   <span>GST Taxes:</span>
                   <span>₹{{ parsedResult().totals.gstTotal | number:'1.2-2' }}</span>
                 </div>
+                
                 <div class="totals-row net-row mt-2">
                   <span>Net Payable:</span>
                   <span class="gradient-text">₹{{ parsedResult().totals.totalAmount | number:'1.2-2' }}</span>
@@ -156,7 +173,7 @@ import { ApiService } from '../core/services/api.service';
                     <th>Purchase Rate</th>
                     <th>MRP</th>
                     <th>GST %</th>
-                    <th>Total</th>
+                    <th>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -184,14 +201,14 @@ import { ApiService } from '../core/services/api.service';
                         </div>
                       </td>
 
-                      <td><input type="text" [(ngModel)]="item.batchNumber" class="table-input glass-input" style="width: 110px;"></td>
+                      <td><input type="text" [(ngModel)]="item.batchNumber" class="table-input glass-input" style="width: 100px;"></td>
                       <td><input type="date" [(ngModel)]="item.expiryDate" class="table-input glass-input" style="width: 120px;"></td>
-                      <td><input type="number" [(ngModel)]="item.quantity" class="table-input glass-input" style="width: 70px;"></td>
-                      <td><input type="number" [(ngModel)]="item.freeQuantity" class="table-input glass-input" style="width: 70px;"></td>
-                      <td><input type="number" [(ngModel)]="item.purchaseRate" class="table-input glass-input" style="width: 80px;"></td>
-                      <td><input type="number" [(ngModel)]="item.mrp" class="table-input glass-input" style="width: 80px;"></td>
-                      <td><input type="number" [(ngModel)]="item.gstPercent" class="table-input glass-input" style="width: 60px;"></td>
-                      <td><strong>₹{{ (item.quantity * item.purchaseRate * (1 + item.gstPercent / 100)) | number:'1.2-2' }}</strong></td>
+                      <td><input type="number" [(ngModel)]="item.quantity" (input)="recalculateTotals()" class="table-input glass-input" style="width: 65px;"></td>
+                      <td><input type="number" [(ngModel)]="item.freeQuantity" (input)="recalculateTotals()" class="table-input glass-input" style="width: 60px;"></td>
+                      <td><input type="number" [(ngModel)]="item.purchaseRate" (input)="recalculateTotals()" class="table-input glass-input" style="width: 75px;"></td>
+                      <td><input type="number" [(ngModel)]="item.mrp" class="table-input glass-input" style="width: 75px;"></td>
+                      <td><input type="number" [(ngModel)]="item.gstPercent" (input)="recalculateTotals()" class="table-input glass-input" style="width: 60px;"></td>
+                      <td><strong>₹{{ getItemTotal(item) | number:'1.2-2' }}</strong></td>
                     </tr>
                   }
                 </tbody>
@@ -459,6 +476,7 @@ export class InvoiceParserComponent implements OnDestroy {
           if (res.status === 'Success') {
             this.clearPolling();
             this.parsedResult.set(res.parsedData);
+            this.recalculateTotals();
             this.processing.set(false);
             this.successMessage.set('AI scan completed successfully! Please review details below.');
           } else if (res.status === 'Failed') {
@@ -501,16 +519,67 @@ export class InvoiceParserComponent implements OnDestroy {
     this.clearPolling();
   }
 
+  // --- Calculations ---
+  getItemTotal(item: any): number {
+    const qty = parseFloat(item.quantity) || 0;
+    const rate = parseFloat(item.purchaseRate) || 0;
+    const disc = parseFloat(item.discountPercent || 0);
+
+    const itemSub = qty * rate * (1 - disc / 100);
+    return Math.round(itemSub * 100) / 100;
+  }
+
+  recalculateTotals(): void {
+    const result = this.parsedResult();
+    if (!result || !result.items || !result.totals) return;
+
+    let subTotal = 0;
+    let rawGstTotal = 0;
+
+    for (const item of result.items) {
+      const qty = parseFloat(item.quantity) || 0;
+      const rate = parseFloat(item.purchaseRate) || 0;
+      const gstP = parseFloat(item.gstPercent) || 0;
+
+      const itemSub = qty * rate;
+      const itemGst = itemSub * (gstP / 100);
+
+      subTotal += itemSub;
+      rawGstTotal += itemGst;
+    }
+
+    const totDisc = parseFloat(result.totals.totalDiscount) || 0;
+    const rOff = parseFloat(result.totals.roundOff) || 0;
+
+    let effectiveGstTotal = rawGstTotal;
+    if (subTotal > 0 && totDisc > 0) {
+      const discRatio = totDisc / subTotal;
+      effectiveGstTotal = rawGstTotal * (1 - discRatio);
+    }
+
+    result.totals.subTotal = Math.round(subTotal * 100) / 100;
+    result.totals.gstTotal = Math.round(effectiveGstTotal * 100) / 100;
+    result.totals.totalAmount = Math.round((subTotal - totDisc + effectiveGstTotal + rOff) * 100) / 100;
+  }
+
   // --- Confirm Import ---
   confirmImport(): void {
     if (!this.parsedResult()) return;
     this.errorMessage.set(null);
     this.successMessage.set(null);
 
+    this.recalculateTotals();
+
+    const sanitizedItems = (this.parsedResult().items || []).map((item: any) => ({
+      ...item,
+      matchedMedicineId: (item.matchedMedicineId && item.matchedMedicineId !== 'null' && item.matchedMedicineId !== 'undefined') ? item.matchedMedicineId : null
+    }));
+
     const payload = {
       supplier: this.parsedResult().supplier,
       invoice: this.parsedResult().invoice,
-      items: this.parsedResult().items,
+      items: sanitizedItems,
+      totals: this.parsedResult().totals,
       remarks: this.remarks || 'Imported via AI OCR workbench'
     };
 

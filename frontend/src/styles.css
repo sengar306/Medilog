@@ -196,13 +196,29 @@ select option:checked {
 .glass-modal,
 .glass-panel.modal-card,
 .glass-panel.modal-panel {
-  background: rgba(13, 19, 34, 0.98) !important;
+  background: rgba(13, 19, 34, 0.97) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9) !important;
-  border-radius: 16px;
+  border-radius: 18px;
   color: var(--text-primary);
+}
+
+/* Active Table Row Selection */
+.active-row,
+.clickable-row.active-row {
+  background: rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Global Tab Styling */
+.modal-tab-btn.active,
+.tab-btn.active {
+  background: var(--primary-gradient) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3) !important;
+  font-weight: 700 !important;
 }
 
 /* Form Controls Fallback */
@@ -411,6 +427,75 @@ select option:checked {
 .layout-grid {
   display: flex;
   min-height: 100vh;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 1024px) {
+  .layout-wrapper {
+    padding: 12px;
+    gap: 12px;
+  }
+  .glass-panel {
+    padding: 18px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .split-view,
+  .billing-split {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout-wrapper {
+    padding: 8px;
+    gap: 8px;
+  }
+  .glass-panel {
+    padding: 14px;
+    border-radius: 10px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .modal-panel,
+  .glass-modal,
+  .modal-card {
+    width: 96% !important;
+    max-width: 96% !important;
+    padding: 16px !important;
+    border-radius: 14px !important;
+  }
+  .glass-table th,
+  .glass-table td {
+    padding: 8px 10px;
+    font-size: 0.82rem;
+  }
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  .btn {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  .header-bar h2 {
+    font-size: 1.1rem;
+  }
+  .time-widget {
+    display: none !important;
+  }
+  .glass-input {
+    font-size: 0.85rem;
+    padding: 8px 12px;
+  }
 }
 
 /* Print Media Stylesheet */

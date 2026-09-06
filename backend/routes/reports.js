@@ -459,23 +459,39 @@ router.get('/customer-history/:customerId', protect, async (req, res) => {
     const customer = await Customer.findById(req.params.customerId);
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
-    if (!verifyOwnership(req, customer)) {
+    const isAdmin = req.user.role && (req.user.role.name === 'Admin' || req.user.role.name === 'Super Admin');
+    
+    // If customer has no user assigned, assign to current user
+    if (!customer.user) {
+      customer.user = req.user._id;
+      await customer.save().catch(() => {});
+    } else if (!isAdmin && customer.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access Denied: You do not own this customer record' });
     }
 
-    const sales = await Sale.find({ customer: req.params.customerId })
+    const userScope = getUserScope(req);
+    const saleQuery = { customer: req.params.customerId, ...userScope };
+
+    const sales = await Sale.find(saleQuery)
       .populate('cashier', 'username email chemistName')
-      .sort({ saleDate: -1 });
+      .sort({ saleDate: -1, createdAt: -1 });
 
     const salesWithItems = await Promise.all(sales.map(async (sale) => {
       const items = await SaleItem.find({ sale: sale._id }).populate('medicine', 'name strength category');
       return { ...sale.toObject(), items };
     }));
 
-    res.json({ customer, sales: salesWithItems, totalSales: sales.length, totalSpent: sales.reduce((s, sale) => s + sale.totalAmount, 0) });
+    const totalSpent = sales.reduce((s, sale) => s + (sale.totalAmount || 0), 0);
+
+    res.json({
+      customer,
+      sales: salesWithItems,
+      totalSales: sales.length,
+      totalSpent: Math.round(totalSpent * 100) / 100
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error fetching customer history' });
+    console.error('Customer history fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching customer history', error: error.message });
   }
 });
 

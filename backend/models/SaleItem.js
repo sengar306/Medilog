@@ -45,6 +45,16 @@ const SaleItemSchema = new mongoose.Schema({
     required: true,
     default: 0,
   },
+  discountPercent: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   totalAmount: {
     type: Number,
     required: true,

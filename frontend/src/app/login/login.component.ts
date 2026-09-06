@@ -58,19 +58,7 @@ import { ApiService } from '../core/services/api.service';
           </button>
         </form>
 
-        <div class="demo-accounts mt-4">
-          <p class="demo-title">Demo Accounts (Seeded)</p>
-          <div class="demo-buttons">
-            <button class="btn-demo" (click)="autofill('admin', 'admin123')">
-              <span>Admin Account</span>
-              <code>admin / admin123</code>
-            </button>
-            <button class="btn-demo" (click)="autofill('user', 'user123')">
-              <span>User Account</span>
-              <code>user / user123</code>
-            </button>
-          </div>
-        </div>
+     
       </div>
     </div>
   `,

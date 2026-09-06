@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { ApiService } from '../core/services/api.service';
@@ -10,25 +10,31 @@ import { NotificationService } from '../core/services/notification.service';
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     <div class="layout-wrapper">
+      <!-- Mobile Sidebar Backdrop Overlay -->
+      @if (mobileSidebarOpen) {
+        <div class="sidebar-backdrop" (click)="closeMobileSidebar()"></div>
+      }
+
       <!-- Sidebar -->
-      <aside class="sidebar glass-panel">
+      <aside class="sidebar glass-panel" [class.mobile-open]="mobileSidebarOpen">
         <div class="sidebar-logo">
           <i class="bi bi-heart-pulse-fill logo-icon"></i>
           <span class="logo-text gradient-text">MediLog</span>
+          <button class="btn-close-sidebar" (click)="closeMobileSidebar()">✕</button>
         </div>
         
         <nav class="sidebar-nav">
-          <a routerLink="/dashboard" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/dashboard" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-grid-1x2-fill"></i>
             <span>Dashboard</span>
           </a>
           
-          <a routerLink="/medicines" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/medicines" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-capsule"></i>
             <span>Medicine</span>
           </a>
 
-          <a routerLink="/inventory" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/inventory" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-archive-fill"></i>
             <span>Inventory</span>
             @if (notifSvc.counts().lowStock > 0) {
@@ -36,50 +42,48 @@ import { NotificationService } from '../core/services/notification.service';
             }
           </a>
 
-       
-
-          <a routerLink="/purchases" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/purchases" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-cart-check-fill"></i>
             <span>Purchase</span>
           </a>
 
-          <a routerLink="/purchase-returns" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/purchase-returns" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-arrow-return-left"></i>
             <span>Returns</span>
           </a>
 
-          <a routerLink="/invoice-parser" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/invoice-parser" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-robot"></i>
             <span>AI Invoice OCR</span>
             <span class="badge badge-info text-xs ml-auto">Gemini</span>
           </a>
 
-          <a routerLink="/billing" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/billing" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-receipt"></i>
             <span>Billing (POS)</span>
           </a>
 
-          <a routerLink="/prescriptions" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/prescriptions" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-file-earmark-medical-fill"></i>
             <span>Prescriptions</span>
           </a>
 
-          <a routerLink="/customers" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/customers" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-people-fill"></i>
             <span>Customers</span>
           </a>
 
-          <a routerLink="/suppliers" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/suppliers" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-truck"></i>
             <span>Suppliers</span>
           </a>
 
-          <a routerLink="/reports" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/reports" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-bar-chart-line-fill"></i>
             <span>Reports</span>
           </a>
 
-          <a routerLink="/expiry-alerts" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/expiry-alerts" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-calendar-event"></i>
             <span>Expiry Alerts</span>
             @if (notifSvc.counts().criticalExpiry > 0 || notifSvc.counts().expired > 0) {
@@ -88,13 +92,13 @@ import { NotificationService } from '../core/services/notification.service';
           </a>
 
           @if (isAdminRole()) {
-            <a routerLink="/users" routerLinkActive="active-tab" class="nav-item">
+            <a routerLink="/users" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
               <i class="bi bi-people-fill"></i>
               <span>Users</span>
             </a>
           }
 
-          <a routerLink="/settings" routerLinkActive="active-tab" class="nav-item">
+          <a routerLink="/settings" (click)="closeMobileSidebar()" routerLinkActive="active-tab" class="nav-item">
             <i class="bi bi-gear-fill"></i>
             <span>Settings</span>
           </a>
@@ -118,7 +122,10 @@ import { NotificationService } from '../core/services/notification.service';
       <div class="main-column">
         <!-- Top Bar Header -->
         <header class="header-bar glass-panel">
-          <div class="header-left">
+          <div class="header-left" style="display: flex; align-items: center; gap: 12px;">
+            <button class="btn-hamburger" (click)="toggleMobileSidebar()">
+              <i class="bi bi-list"></i>
+            </button>
             <h2>Pharmacy Hub</h2>
           </div>
           <div class="header-right">
@@ -138,7 +145,7 @@ import { NotificationService } from '../core/services/notification.service';
 
               <!-- Notification Dropdown Panel -->
               @if (showNotifPanel) {
-                <div class="notif-panel glass-panel" (click)="$event.stopPropagation()">
+                <div class="notif-panel" (click)="$event.stopPropagation()">
                   <div class="notif-header">
                     <h4><i class="bi bi-bell-fill"></i> Alerts ({{ notifSvc.totalCount() }})</h4>
                     <button class="btn-icon" (click)="showNotifPanel = false">
@@ -317,6 +324,8 @@ import { NotificationService } from '../core/services/notification.service';
       justify-content: space-between;
       padding: 0 24px;
       flex-shrink: 0;
+      position: relative;
+      z-index: 1100;
     }
     .header-right {
       display: flex;
@@ -387,18 +396,17 @@ import { NotificationService } from '../core/services/notification.service';
     }
     .notif-panel {
       position: absolute;
-      top: 48px;
+      top: calc(100% + 12px);
       right: 0;
       width: 380px;
-      z-index: 1000;
+      max-width: calc(100vw - 32px);
+      z-index: 99999 !important;
       padding: 0;
       overflow: hidden;
-      background: rgba(13, 19, 34, 0.98);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #0f172a !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
       border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05);
       animation: slideDown 0.2s ease;
     }
     @keyframes slideDown {
@@ -410,7 +418,8 @@ import { NotificationService } from '../core/services/notification.service';
       align-items: center;
       justify-content: space-between;
       padding: 16px 20px 12px;
-      border-bottom: 1px solid var(--glass-border);
+      background: #1e293b;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     .notif-header h4 {
       font-size: 0.95rem;
@@ -446,19 +455,21 @@ import { NotificationService } from '../core/services/notification.service';
     .notif-list {
       max-height: 360px;
       overflow-y: auto;
-      padding: 8px 0;
+      padding: 4px 0;
+      background: #0f172a;
     }
     .notif-item {
       display: flex;
       align-items: flex-start;
       gap: 12px;
       padding: 12px 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
+      background: #0f172a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       transition: background 0.15s;
     }
-    .notif-item:hover { background: rgba(255,255,255,0.02); }
-    .notif-item.critical { border-left: 3px solid #ef4444; }
-    .notif-item.warning { border-left: 3px solid #f59e0b; }
+    .notif-item:hover { background: #1e293b; }
+    .notif-item.critical { border-left: 4px solid #ef4444; }
+    .notif-item.warning { border-left: 4px solid #f59e0b; }
     .notif-icon {
       font-size: 1.1rem;
       flex-shrink: 0;
@@ -484,11 +495,13 @@ import { NotificationService } from '../core/services/notification.service';
       padding: 32px 20px;
       color: #10b981;
       font-size: 0.9rem;
+      background: #0f172a;
     }
     .notif-empty i { font-size: 1.8rem; }
     .notif-footer {
       padding: 12px 20px;
-      border-top: 1px solid var(--glass-border);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      background: #1e293b;
       text-align: center;
     }
     .notif-see-all {
@@ -498,6 +511,70 @@ import { NotificationService } from '../core/services/notification.service';
       font-weight: 500;
     }
     .notif-see-all:hover { text-decoration: underline; }
+
+    /* Responsive Drawer Styles */
+    .btn-close-sidebar {
+      display: none;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      cursor: pointer;
+      margin-left: auto;
+    }
+    .btn-hamburger {
+      display: none;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      font-size: 1.3rem;
+      border-radius: 8px;
+      width: 38px;
+      height: 38px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-hamburger:hover {
+      background: rgba(37, 99, 235, 0.2);
+      color: #38bdf8;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 99999 !important;
+        width: 280px;
+        height: 100vh !important;
+        border-radius: 0 16px 16px 0 !important;
+        background: rgba(13, 19, 34, 0.98) !important;
+        backdrop-filter: blur(20px) !important;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 10px 0 40px rgba(0, 0, 0, 0.9);
+      }
+      .sidebar.mobile-open {
+        transform: translateX(0) !important;
+      }
+      .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(4px);
+        z-index: 9990;
+        animation: fadeIn 0.2s ease;
+      }
+      .btn-hamburger, .btn-close-sidebar {
+        display: flex !important;
+      }
+    }
   `]
 })
 export class LayoutComponent implements OnInit, OnDestroy {
@@ -507,6 +584,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   localTime = new Date().toLocaleTimeString();
   showNotifPanel = false;
+  mobileSidebarOpen = false;
 
   private clockInterval: any;
 
@@ -516,6 +594,14 @@ export class LayoutComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
+  toggleMobileSidebar(): void {
+    this.mobileSidebarOpen = !this.mobileSidebarOpen;
+  }
+
+  closeMobileSidebar(): void {
+    this.mobileSidebarOpen = false;
+  }
+
   ngOnInit(): void {
     this.notifSvc.startPolling(60000);
   }
@@ -523,6 +609,14 @@ export class LayoutComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.clockInterval) clearInterval(this.clockInterval);
     this.notifSvc.stopPolling();
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.notif-wrapper')) {
+      this.showNotifPanel = false;
+    }
   }
 
   toggleNotifPanel(): void {

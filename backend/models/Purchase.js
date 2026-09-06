@@ -25,6 +25,18 @@ const PurchaseSchema = new mongoose.Schema({
     required: true,
     default: 0,
   },
+  discountAmount: {
+    type: Number,
+    default: 0,
+  },
+  cashDiscount: {
+    type: Number,
+    default: 0,
+  },
+  billDiscount: {
+    type: Number,
+    default: 0,
+  },
   gstTotal: {
     type: Number,
     required: true,

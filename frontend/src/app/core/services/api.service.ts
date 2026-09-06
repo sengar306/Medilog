@@ -15,6 +15,10 @@ export class ApiService {
     ? 'http://localhost:5000'
     : 'https://medilog-dza5.onrender.com';
 
+  get baseUrl(): string {
+    return this.apiUrl;
+  }
+
   // User State
   currentUser = signal<any>(this.getUserFromLocalStorage());
   token = signal<string | null>(localStorage.getItem('token'));

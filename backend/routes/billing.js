@@ -165,23 +165,41 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: 'No items in sale' });
     }
 
-    // 1. Resolve customer for logged-in user
+    // 1. Resolve or create customer for logged-in user
     let customerId = null;
-    if (customerPhone && customerName) {
-      let customer = await Customer.findOne({ phone: customerPhone, user: req.user._id });
-      if (!customer) {
-        try {
+    if (customerPhone || customerName) {
+      const cleanPhone = customerPhone ? customerPhone.toString().trim() : '';
+      const cleanName = customerName ? customerName.toString().trim() : (cleanPhone ? `Patient ${cleanPhone}` : 'Walk-in Customer');
+
+      if (cleanPhone) {
+        let customer = await Customer.findOne({ phone: cleanPhone, user: req.user._id });
+        if (!customer) {
+          try {
+            customer = new Customer({
+              name: cleanName,
+              phone: cleanPhone,
+              user: req.user._id
+            });
+            await customer.save();
+          } catch (custErr) {
+            customer = await Customer.findOne({ phone: cleanPhone });
+          }
+        } else if (cleanName && cleanName !== customer.name && cleanName !== `Patient ${cleanPhone}`) {
+          customer.name = cleanName;
+          await customer.save();
+        }
+        if (customer) customerId = customer._id;
+      } else if (cleanName && cleanName !== 'Walk-in Customer') {
+        let customer = await Customer.findOne({ name: cleanName, user: req.user._id });
+        if (!customer) {
           customer = new Customer({
-            name: customerName,
-            phone: customerPhone,
+            name: cleanName,
             user: req.user._id
           });
           await customer.save();
-        } catch (custErr) {
-          customer = await Customer.findOne({ phone: customerPhone });
         }
+        if (customer) customerId = customer._id;
       }
-      if (customer) customerId = customer._id;
     }
 
     const today = new Date();
@@ -299,6 +317,23 @@ router.post('/', protect, async (req, res) => {
     const gstTotalRounded = Math.round(calculatedGst * 100) / 100;
     const finalAmount = Math.max(0, subTotalRounded + gstTotalRounded - discount);
 
+    let prescriptionUrl = '';
+    if (req.body.prescriptionImage) {
+      try {
+        const rxDir = path.join(__dirname, '../uploads/prescriptions');
+        if (!fs.existsSync(rxDir)) {
+          fs.mkdirSync(rxDir, { recursive: true });
+        }
+        const base64Data = req.body.prescriptionImage.replace(/^data:image\/\w+;base64,/, '');
+        const filename = `rx-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}.jpg`;
+        const filePath = path.join(rxDir, filename);
+        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+        prescriptionUrl = `/uploads/prescriptions/${filename}`;
+      } catch (imgErr) {
+        console.error('Failed to save prescription image:', imgErr);
+      }
+    }
+
     // 4. Create Sale
     const sale = new Sale({
       customer: customerId || undefined,
@@ -309,15 +344,24 @@ router.post('/', protect, async (req, res) => {
       discountAmount: discount,
       totalAmount: Math.round(finalAmount * 100) / 100,
       paymentMode: paymentMode || 'Cash',
-      cashier: req.user._id
+      cashier: req.user._id,
+      prescriptionUrl
     });
 
     const savedSale = await sale.save();
 
     // 5. Execute batch deductions, save items and log stock transactions
+    const effectiveDiscountPercent = calculatedSubtotal > 0 ? (discount / calculatedSubtotal) * 100 : 0;
     const savedSaleItems = [];
     for (const ded of batchDeductions) {
       const { batch, medicineId, batchNumber, deductQty, rate, mrp, gstPercent, gstAmount, totalAmount } = ded;
+
+      const itemGrossSubtotal = deductQty * rate;
+      const itemDiscP = effectiveDiscountPercent;
+      const itemDiscAmt = Math.round((itemGrossSubtotal * (itemDiscP / 100)) * 100) / 100;
+      const itemTaxableVal = itemGrossSubtotal - itemDiscAmt;
+      const itemGstAmt = Math.round((itemTaxableVal * (gstPercent / 100)) * 100) / 100;
+      const itemTotalAmt = Math.round((itemTaxableVal + itemGstAmt) * 100) / 100;
 
       const prevStock = batch.quantity;
       batch.quantity -= deductQty;
@@ -332,8 +376,10 @@ router.post('/', protect, async (req, res) => {
         rate,
         mrp,
         gstPercent,
-        gstAmount: Math.round(gstAmount * 100) / 100,
-        totalAmount: Math.round(totalAmount * 100) / 100
+        gstAmount: itemGstAmt,
+        discountPercent: Math.round(itemDiscP * 100) / 100,
+        discountAmount: itemDiscAmt,
+        totalAmount: itemTotalAmt
       });
       const savedItem = await saleItem.save();
       savedSaleItems.push(savedItem);

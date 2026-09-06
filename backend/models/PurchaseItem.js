@@ -43,6 +43,14 @@ const PurchaseItemSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
+  discountPercent: {
+    type: Number,
+    default: 0,
+  },
+  discount2Percent: {
+    type: Number,
+    default: 0,
+  },
   gstPercent: {
     type: Number,
     required: true,

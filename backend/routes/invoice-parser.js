@@ -423,18 +423,36 @@ router.post('/confirm', protect, authorize('Admin', 'User'), async (req, res) =>
     const invoiceDate = (invoice && invoice.invoiceDate) ? new Date(invoice.invoiceDate) : new Date();
 
     // 1. Resolve or Create Supplier
-    let dbSupplier = await Supplier.findOne({ name: supplierName, user: req.user._id });
+    const escapedName = supplierName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let dbSupplier = await Supplier.findOne({ 
+      name: new RegExp(`^${escapedName}$`, 'i'), 
+      user: req.user._id 
+    });
+
     if (!dbSupplier) {
-      dbSupplier = new Supplier({
-        name: supplierName,
-        user: req.user._id,
-        gstNumber: supplier.gstNumber || '',
-        phone: supplier.phone || '',
-        email: supplier.email || '',
-        address: supplier.address || ''
-      });
-      await dbSupplier.save();
-      await logAudit('Create Supplier', 'Supplier', `Auto-created supplier '${supplierName}' during AI import`, req.user._id, req);
+      dbSupplier = await Supplier.findOne({ name: new RegExp(`^${escapedName}$`, 'i') });
+    }
+
+    if (!dbSupplier) {
+      try {
+        dbSupplier = new Supplier({
+          name: supplierName,
+          user: req.user._id,
+          gstNumber: supplier.gstNumber || '',
+          phone: supplier.phone || '',
+          email: supplier.email || '',
+          address: supplier.address || ''
+        });
+        await dbSupplier.save();
+        await logAudit('Create Supplier', 'Supplier', `Auto-created supplier '${supplierName}' during AI import`, req.user._id, req);
+      } catch (saveErr) {
+        if (saveErr.code === 11000) {
+          dbSupplier = await Supplier.findOne({ name: new RegExp(`^${escapedName}$`, 'i') });
+        }
+        if (!dbSupplier) {
+          throw saveErr;
+        }
+      }
     }
 
     // 2. Prepare items, auto-creating medicines if not mapped

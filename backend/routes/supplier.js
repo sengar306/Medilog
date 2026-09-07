@@ -53,13 +53,17 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
 
     const targetUserId = ((req.user.role.name === 'Admin' || req.user.role.name === 'Super Admin') && req.body.userId) ? req.body.userId : req.user._id;
 
-    const supplierExists = await Supplier.findOne({ name, user: targetUserId });
+    const escapedName = name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const supplierExists = await Supplier.findOne({ 
+      name: new RegExp(`^${escapedName}$`, 'i'), 
+      user: targetUserId 
+    });
     if (supplierExists) {
       return res.status(400).json({ message: 'Supplier with this name already exists in your account' });
     }
 
     const supplier = new Supplier({
-      name,
+      name: name.trim(),
       user: targetUserId,
       contactPerson,
       email,
@@ -81,6 +85,9 @@ router.post('/', protect, authorize('Admin', 'User'), async (req, res) => {
     res.status(201).json(createdSupplier);
   } catch (error) {
     console.error(error);
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Supplier with this name already exists in your account' });
+    }
     res.status(500).json({ message: 'Server error creating supplier' });
   }
 });

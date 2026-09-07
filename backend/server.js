@@ -123,9 +123,11 @@ const seedDB = async () => {
     const InventoryBatch = require('./models/InventoryBatch');
     const Customer = require('./models/Customer');
 
-    // 1. Seed Roles (Admin & User only)
+    // 1. Seed Roles (Super Admin, Admin, Chemist & User)
     const rolesToSeed = [
+      { name: 'Super Admin', description: 'Master System Administrator with full global access' },
       { name: 'Admin', description: 'System Administrator with full access' },
+      { name: 'Chemist', description: 'Chemist Pharmacy Store Owner' },
       { name: 'User', description: 'Standard Pharmacy User' }
     ];
 
@@ -157,7 +159,15 @@ const seedDB = async () => {
       }
     }
 
-    // 3. Seed Suppliers
+    // 3. Sync Supplier indexes to drop any legacy single-field unique index (name_1)
+    try {
+      await Supplier.syncIndexes();
+      console.log('Supplier indexes synchronized.');
+    } catch (idxErr) {
+      console.log('Supplier syncIndexes note:', idxErr.message);
+    }
+
+    // Seed Suppliers
     const suppliersToSeed = [
       { name: 'Manoj Medicos', email: 'manoj@medicos.com', phone: '9219276632', address: 'Assandh Road, Panipat' },
       { name: 'Gupta Medical Hall', email: 'gupta@medical.com', phone: '9876543210', address: 'G.T. Road, Panipat' }
@@ -165,8 +175,12 @@ const seedDB = async () => {
     for (const s of suppliersToSeed) {
       let doc = await Supplier.findOne({ name: s.name });
       if (!doc) {
-        await new Supplier(s).save();
-        console.log(`Supplier seeded: ${s.name}`);
+        try {
+          await new Supplier(s).save();
+          console.log(`Supplier seeded: ${s.name}`);
+        } catch (err) {
+          if (err.code !== 11000) throw err;
+        }
       }
     }
 

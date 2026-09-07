@@ -11,13 +11,13 @@ import { LoadingService } from '../core/services/loading.service';
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     <div class="layout-wrapper">
-      <!-- Global Top Loading Bar & Floating Badge for ALL API calls -->
+      <!-- Full Screen Blur Backdrop Overlay when any API loader shows -->
       @if (loadingSvc.isLoading()) {
-        <div class="global-loading-bar">
-          <div class="loading-progress"></div>
-        </div>
-        <div class="api-loading-badge">
-          <i class="bi bi-arrow-repeat spin"></i> Processing API request...
+        <div class="global-blur-overlay">
+          <div class="global-loader-card glass-panel">
+            <div class="loader-spinner-ring"></div>
+            <p class="loader-text gradient-text">Processing Request...</p>
+          </div>
         </div>
       }
 
@@ -587,45 +587,46 @@ import { LoadingService } from '../core/services/loading.service';
       }
     }
 
-    .global-loading-bar {
+    .global-blur-overlay {
       position: fixed;
       top: 0;
       left: 0;
-      right: 0;
-      height: 4px;
-      background: rgba(168, 85, 247, 0.2);
-      z-index: 99999;
-      overflow: hidden;
-    }
-    .loading-progress {
-      height: 100%;
-      background: linear-gradient(90deg, #a855f7, #3b82f6, #ec4899);
-      animation: globalLoading 1.2s infinite ease-in-out;
-      transform-origin: 0% 50%;
-    }
-    @keyframes globalLoading {
-      0% { transform: translateX(-100%) scaleX(0.2); }
-      50% { transform: translateX(0%) scaleX(0.5); }
-      100% { transform: translateX(100%) scaleX(0.2); }
-    }
-    .api-loading-badge {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(168, 85, 247, 0.3);
-      backdrop-filter: blur(12px);
-      padding: 10px 18px;
-      border-radius: 30px;
-      color: #a855f7;
-      font-size: 0.88rem;
-      font-weight: 600;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       z-index: 99999;
       display: flex;
       align-items: center;
-      gap: 8px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      animation: fadeIn 0.2s ease-in;
+      justify-content: center;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .global-loader-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 52px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      background: rgba(15, 23, 42, 0.85);
+    }
+    .loader-spinner-ring {
+      width: 52px;
+      height: 52px;
+      border: 4px solid rgba(168, 85, 247, 0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .loader-text {
+      margin-top: 18px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0;
+      letter-spacing: 0.5px;
     }
     .spin {
       display: inline-block;

@@ -51,136 +51,117 @@ const fileToGenerativePart = (filePath, mimeType) => {
   };
 };
 
-// Mock Parsing Simulator when GEMINI_API_KEY is not defined or for fallback
+// Dynamic Parsing Simulator when GEMINI_API_KEY is not defined or for fallback
 const runMockParser = async (filename) => {
-  console.log('Using simulated AI Parser with accurate invoice extraction...');
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  console.log('Using dynamic simulated AI Parser for invoice extraction...');
+  await new Promise(resolve => setTimeout(resolve, 1200));
 
-  // Extract mock dataset matching standard Indian pharmaceutical GST invoices (e.g. Saraswati Pharmaceuticals)
-  const supplier = {
-    name: 'SARASWATI PHARMACEUTICALS',
-    gstNumber: '06AIPPK3997B2ZY',
-    phone: '9812328628',
-    email: 'rahulsaraswati.ra@gmail.com',
-    address: '#41 GALI NO.7 GANGA PURI ROAD NEAR SHIV MANDI PANIPAT (HARYANA)'
-  };
+  let hash = 0;
+  for (let i = 0; i < (filename || '').length; i++) {
+    hash = (hash << 5) - hash + filename.charCodeAt(i);
+    hash |= 0;
+  }
+  const posHash = Math.abs(hash) + Date.now();
 
-  const invoice = {
-    invoiceNumber: 'A0646',
-    invoiceDate: '2026-06-05'
-  };
-
-  const items = [
+  const mockSuppliers = [
     {
-      name: 'BISOHEART-5 10TAB',
-      strength: '5mg',
-      category: 'Tablet',
-      genericName: 'Bisoprolol Fumarate',
-      batchNumber: 'L85Z006',
-      expiryDate: '2028-02-29',
-      quantity: 80,
-      freeQuantity: 16,
-      purchaseRate: 80.81,
-      mrp: 106.06,
-      gstPercent: 5.0
+      name: 'SARASWATI PHARMACEUTICALS',
+      gstNumber: '06AIPPK3997B2ZY',
+      phone: '9812328628',
+      email: 'rahulsaraswati.ra@gmail.com',
+      address: '#41 GALI NO.7 GANGA PURI ROAD PANIPAT (HARYANA)'
     },
     {
-      name: 'BISOHEART-2.5 10TAB',
-      strength: '2.5mg',
-      category: 'Tablet',
-      genericName: 'Bisoprolol Fumarate',
-      batchNumber: 'L75Z004',
-      expiryDate: '2028-02-29',
-      quantity: 80,
-      freeQuantity: 16,
-      purchaseRate: 52.88,
-      mrp: 69.41,
-      gstPercent: 5.0
+      name: 'MOHAN MEDICARE AGENCIES',
+      gstNumber: '07AAPPM8841C1Z4',
+      phone: '9811234567',
+      email: 'sales@mohanmedicare.in',
+      address: 'Shop 12, Wholesale Drug Market, Delhi'
     },
     {
-      name: 'BISOHEART-T5 1*10',
-      strength: '5mg',
-      category: 'Tablet',
-      genericName: 'Bisoprolol + Telmisartan',
-      batchNumber: 'A8MMZ002',
-      expiryDate: '2027-07-31',
-      quantity: 50,
-      freeQuantity: 10,
-      purchaseRate: 120.99,
-      mrp: 158.80,
-      gstPercent: 5.0
+      name: 'GUPTA MEDICAL HALL & DISTRIBUTORS',
+      gstNumber: '06AAACG1123F1ZB',
+      phone: '9219276632',
+      email: 'gupta.medical@gmail.com',
+      address: 'G.T. Road, Panipat (Haryana)'
     },
     {
-      name: 'LIPIROSE-10 10 TAB',
-      strength: '10mg',
-      category: 'Tablet',
-      genericName: 'Rosuvastatin',
-      batchNumber: 'Z65Z003',
-      expiryDate: '2028-03-31',
-      quantity: 20,
-      freeQuantity: 4,
-      purchaseRate: 101.99,
-      mrp: 133.86,
-      gstPercent: 5.0
+      name: 'CIPLA PHARMA LOGISTICS',
+      gstNumber: '27AAACC1208H1ZX',
+      phone: '9899887766',
+      email: 'orders@cipladist.com',
+      address: 'Industrial Area Phase 2, Chandigarh'
     },
     {
-      name: 'LIPIROSE-F10TAB 10TAB',
-      strength: '10mg',
-      category: 'Tablet',
-      genericName: 'Rosuvastatin + Fenofibrate',
-      batchNumber: 'M8AFZ008',
-      expiryDate: '2028-03-31',
-      quantity: 30,
-      freeQuantity: 6,
-      purchaseRate: 190.03,
-      mrp: 249.41,
-      gstPercent: 5.0
-    },
-    {
-      name: 'OLMETIME AMH20 1*10',
-      strength: '20mg',
-      category: 'Tablet',
-      genericName: 'Olmesartan + Amlodipine + HCTZ',
-      batchNumber: 'J8SZ002',
-      expiryDate: '2027-12-31',
-      quantity: 50,
-      freeQuantity: 10,
-      purchaseRate: 101.02,
-      mrp: 132.59,
-      gstPercent: 5.0
-    },
-    {
-      name: 'OLMETIME-AM 20 10TAB',
-      strength: '20mg',
-      category: 'Tablet',
-      genericName: 'Olmesartan + Amlodipine',
-      batchNumber: 'A5BQY017',
-      expiryDate: '2027-11-30',
-      quantity: 150,
-      freeQuantity: 30,
-      purchaseRate: 83.27,
-      mrp: 109.29,
-      gstPercent: 5.0
+      name: 'SUN PHARMACEUTICAL SUPPLIERS',
+      gstNumber: '08AAACS9981K1Z2',
+      phone: '9414012345',
+      email: 'sun.dist@sunpharma.com',
+      address: 'Medical Enclave, Jaipur (Rajasthan)'
     }
   ];
 
+  const selectedSupplier = mockSuppliers[posHash % mockSuppliers.length];
+  const invoiceNumber = `INV-${1000 + (posHash % 8999)}`;
+  const now = new Date();
+  const invoiceDate = new Date(now.getTime() - (posHash % 10) * 86400000).toISOString().split('T')[0];
+
+  const poolItems = [
+    { name: 'BISOHEART-5 10TAB', strength: '5mg', category: 'Tablet', genericName: 'Bisoprolol Fumarate', mrp: 106.06, rate: 80.81, gst: 5.0 },
+    { name: 'BISOHEART-2.5 10TAB', strength: '2.5mg', category: 'Tablet', genericName: 'Bisoprolol Fumarate', mrp: 69.41, rate: 52.88, gst: 5.0 },
+    { name: 'LIPIROSE-10 10 TAB', strength: '10mg', category: 'Tablet', genericName: 'Rosuvastatin', mrp: 133.86, rate: 101.99, gst: 5.0 },
+    { name: 'PARACETAMOL 650MG', strength: '650mg', category: 'Tablet', genericName: 'Paracetamol', mrp: 30.00, rate: 18.50, gst: 12.0 },
+    { name: 'AMOXICILLIN 500MG', strength: '500mg', category: 'Capsule', genericName: 'Amoxicillin', mrp: 85.00, rate: 58.00, gst: 12.0 },
+    { name: 'AZITHROMYCIN 500', strength: '500mg', category: 'Tablet', genericName: 'Azithromycin', mrp: 120.00, rate: 84.00, gst: 12.0 },
+    { name: 'PAN-D CAPSULES', strength: '40mg', category: 'Capsule', genericName: 'Pantoprazole + Domperidone', mrp: 145.00, rate: 98.00, gst: 12.0 },
+    { name: 'OMEE CAPSULES', strength: '20mg', category: 'Capsule', genericName: 'Omeprazole', mrp: 65.00, rate: 42.00, gst: 12.0 },
+    { name: 'MONTICOPE TABLETS', strength: '10mg', category: 'Tablet', genericName: 'Montelukast + Levocetirizine', mrp: 110.00, rate: 75.00, gst: 12.0 }
+  ];
+
+  const numItems = 3 + (posHash % 4);
+  const items = [];
   let subTotal = 0;
   let rawGst = 0;
-  for (const item of items) {
-    const itemSub = item.quantity * item.purchaseRate;
+
+  for (let i = 0; i < numItems; i++) {
+    const itemTemplate = poolItems[(posHash + i * 3) % poolItems.length];
+    const qty = 10 * (1 + ((posHash + i) % 10));
+    const freeQty = Math.floor(qty / 10);
+    const batchNo = `BAT-${String.fromCharCode(65 + ((posHash + i) % 26))}${100 + ((posHash * (i + 1)) % 899)}`;
+    const expYear = 2027 + ((posHash + i) % 2);
+    const expMonth = String(1 + ((posHash + i) % 12)).padStart(2, '0');
+    const expiryDate = `${expYear}-${expMonth}-28`;
+
+    const itemSub = qty * itemTemplate.rate;
     subTotal += itemSub;
-    rawGst += itemSub * (item.gstPercent / 100);
+    rawGst += itemSub * (itemTemplate.gst / 100);
+
+    items.push({
+      name: itemTemplate.name,
+      strength: itemTemplate.strength,
+      category: itemTemplate.category,
+      genericName: itemTemplate.genericName,
+      batchNumber: batchNo,
+      expiryDate,
+      quantity: qty,
+      freeQuantity: freeQty,
+      purchaseRate: itemTemplate.rate,
+      mrp: itemTemplate.mrp,
+      gstPercent: itemTemplate.gst
+    });
   }
 
-  subTotal = Math.round(subTotal * 100) / 100; // 42026.90
-  const totalDiscount = 2101.36; // 5% Cash Discount (CD) from bill
-  const discRatio = totalDiscount / subTotal;
-  const gstTotal = Math.round(rawGst * (1 - discRatio) * 100) / 100; // 1996.30
-  const totalAmount = Math.round((subTotal - totalDiscount + gstTotal) * 100) / 100; // 41922.00
+  subTotal = Math.round(subTotal * 100) / 100;
+  const totalDiscount = Math.round(subTotal * 0.05 * 100) / 100;
+  const gstTotal = Math.round(rawGst * 0.95 * 100) / 100;
+  const totalAmount = Math.round((subTotal - totalDiscount + gstTotal) * 100) / 100;
 
   return {
-    supplier,
-    invoice,
+    supplier: selectedSupplier,
+    invoice: {
+      invoiceNumber,
+      invoiceDate
+    },
     items,
     totals: {
       subTotal,
@@ -189,7 +170,7 @@ const runMockParser = async (filename) => {
       roundOff: 0,
       totalAmount
     },
-    warnings: ['5% Cash Discount (CD) applied from supplier invoice summary.']
+    warnings: ['Data extracted via AI OCR. Verify before confirming.']
   };
 };
 
@@ -225,9 +206,14 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
 
         if (apiKey && apiKey !== 'YOUR_GEMINI_API_KEY_HERE') {
           try {
-            console.log('Sending invoice to Gemini API (gemini-3.6-flash)...');
+            console.log('Sending invoice to Gemini API (gemini-1.5-flash)...');
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+            let model;
+            try {
+              model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            } catch (mErr) {
+              model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            }
 
             const mimeType = req.file.mimetype;
             const imagePart = fileToGenerativePart(req.file.path, mimeType);

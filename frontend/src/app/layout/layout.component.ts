@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { ApiService } from '../core/services/api.service';
 import { NotificationService } from '../core/services/notification.service';
+import { LoadingService } from '../core/services/loading.service';
 
 @Component({
   selector: 'app-layout',
@@ -10,6 +11,16 @@ import { NotificationService } from '../core/services/notification.service';
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
     <div class="layout-wrapper">
+      <!-- Global Top Loading Bar & Floating Badge for ALL API calls -->
+      @if (loadingSvc.isLoading()) {
+        <div class="global-loading-bar">
+          <div class="loading-progress"></div>
+        </div>
+        <div class="api-loading-badge">
+          <i class="bi bi-arrow-repeat spin"></i> Processing API request...
+        </div>
+      }
+
       <!-- Mobile Sidebar Backdrop Overlay -->
       @if (mobileSidebarOpen) {
         <div class="sidebar-backdrop" (click)="closeMobileSidebar()"></div>
@@ -575,11 +586,60 @@ import { NotificationService } from '../core/services/notification.service';
         display: flex !important;
       }
     }
+
+    .global-loading-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: rgba(168, 85, 247, 0.2);
+      z-index: 99999;
+      overflow: hidden;
+    }
+    .loading-progress {
+      height: 100%;
+      background: linear-gradient(90deg, #a855f7, #3b82f6, #ec4899);
+      animation: globalLoading 1.2s infinite ease-in-out;
+      transform-origin: 0% 50%;
+    }
+    @keyframes globalLoading {
+      0% { transform: translateX(-100%) scaleX(0.2); }
+      50% { transform: translateX(0%) scaleX(0.5); }
+      100% { transform: translateX(100%) scaleX(0.2); }
+    }
+    .api-loading-badge {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      backdrop-filter: blur(12px);
+      padding: 10px 18px;
+      border-radius: 30px;
+      color: #a855f7;
+      font-size: 0.88rem;
+      font-weight: 600;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: fadeIn 0.2s ease-in;
+    }
+    .spin {
+      display: inline-block;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
   `]
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   private apiService = inject(ApiService);
   notifSvc = inject(NotificationService);
+  loadingSvc = inject(LoadingService);
   private router = inject(Router);
 
   localTime = new Date().toLocaleTimeString();

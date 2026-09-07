@@ -147,8 +147,12 @@ import { ApiService } from '../core/services/api.service';
                 <input type="text" [(ngModel)]="remarks" name="remarks" class="glass-input" placeholder="Import remarks...">
               </div>
 
-              <button type="button" (click)="confirmImport()" class="btn btn-primary w-100 mt-4">
-                <i class="bi bi-check-all"></i> Confirm & Import Stock
+              <button type="button" (click)="confirmImport()" class="btn btn-primary w-100 mt-4" [disabled]="submitting()">
+                @if (submitting()) {
+                  <i class="bi bi-arrow-repeat spin"></i> Processing & Saving...
+                } @else {
+                  <i class="bi bi-check-all"></i> Confirm & Import Stock
+                }
               </button>
             </form>
           </div>
@@ -214,6 +218,17 @@ import { ApiService } from '../core/services/api.service';
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      }
+
+      <!-- Full-screen Loading Overlay when API response is pending -->
+      @if (submitting()) {
+        <div class="loader-overlay">
+          <div class="glass-panel text-center p-4 shadow-lg" style="max-width: 400px; width: 90%;">
+            <div class="spinner-border text-primary" role="status"></div>
+            <h3 class="mt-3 gradient-text">Updating Stock & Suppliers</h3>
+            <p class="text-secondary mb-0">Saving purchase records to inventory... Please wait.</p>
           </div>
         </div>
       }
@@ -394,6 +409,35 @@ import { ApiService } from '../core/services/api.service';
       border: 1px solid rgba(239, 68, 68, 0.2);
       color: #f87171;
     }
+    .spin {
+      display: inline-block;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+    .loader-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .spinner-border {
+      width: 3.5rem;
+      height: 3.5rem;
+      border: 4px solid rgba(255, 255, 255, 0.15);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      margin: 0 auto;
+      animation: spin 0.8s linear infinite;
+    }
   `]
 })
 export class InvoiceParserComponent implements OnDestroy {
@@ -402,6 +446,7 @@ export class InvoiceParserComponent implements OnDestroy {
 
   dragOver = signal(false);
   processing = signal(false);
+  submitting = signal(false);
   jobId = signal<string | null>(null);
   
   parsedResult = signal<any | null>(null);
@@ -564,9 +609,10 @@ export class InvoiceParserComponent implements OnDestroy {
 
   // --- Confirm Import ---
   confirmImport(): void {
-    if (!this.parsedResult()) return;
+    if (!this.parsedResult() || this.submitting()) return;
     this.errorMessage.set(null);
     this.successMessage.set(null);
+    this.submitting.set(true);
 
     this.recalculateTotals();
 
@@ -585,12 +631,14 @@ export class InvoiceParserComponent implements OnDestroy {
 
     this.apiService.confirmInvoiceImport(payload).subscribe({
       next: () => {
+        this.submitting.set(false);
         this.successMessage.set('Inventory updated successfully from AI Scan!');
         setTimeout(() => {
           this.router.navigate(['/purchases']);
         }, 1500);
       },
       error: (err) => {
+        this.submitting.set(false);
         this.errorMessage.set(err.error?.message || 'Failed to import stock from invoice.');
       }
     });

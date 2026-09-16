@@ -3,6 +3,16 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+
+if (!global.fetch) {
+  try {
+    const nodeFetch = require('node-fetch');
+    global.fetch = nodeFetch;
+    global.Headers = nodeFetch.Headers;
+    global.Request = nodeFetch.Request;
+    global.Response = nodeFetch.Response;
+  } catch (e) {}
+}
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const InvoiceParserJob = require('../models/InvoiceParserJob');
 const Medicine = require('../models/Medicine');
@@ -40,6 +50,179 @@ const upload = multer({
     }
   }
 });
+
+// Helper: Clean numeric input (remove currency symbols, commas, percent signs, etc.)
+const cleanNumber = (val, defaultVal = 0) => {
+  if (val === null || val === undefined || val === '') return defaultVal;
+  if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
+  const str = String(val).replace(/[^0-9.-]/g, '');
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? defaultVal : parsed;
+};
+
+// Helper: Normalize any OCR date string into YYYY-MM-DD
+const normalizeExpiryDate = (dateStr) => {
+  if (!dateStr || typeof dateStr !== 'string') {
+    const d = new Date(Date.now() + 365 * 86400000);
+    return d.toISOString().split('T')[0];
+  }
+
+  const str = dateStr.trim();
+
+  // Pattern 1: YYYY-MM-DD (e.g. 2028-02-28)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+
+  // Pattern 2: YYYY-MM (e.g. 2028-02) -> set to end of month
+  if (/^\d{4}-\d{2}$/.test(str)) {
+    const [y, m] = str.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  }
+
+  // Pattern 3: MM/YY or MM-YY (e.g. 02/28 or 2/28 or 07-27)
+  const mmyyMatch = str.match(/^(\d{1,2})[\/\-](\d{2})$/);
+  if (mmyyMatch) {
+    const m = parseInt(mmyyMatch[1], 10);
+    let y = parseInt(mmyyMatch[2], 10);
+    y = y < 100 ? 2000 + y : y;
+    if (m >= 1 && m <= 12) {
+      const lastDay = new Date(y, m, 0).getDate();
+      return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+  }
+
+  // Pattern 4: MM/YYYY or MM-YYYY (e.g. 02/2028 or 07-2027)
+  const mmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{4})$/);
+  if (mmyyyyMatch) {
+    const m = parseInt(mmyyyyMatch[1], 10);
+    const y = parseInt(mmyyyyMatch[2], 10);
+    if (m >= 1 && m <= 12) {
+      const lastDay = new Date(y, m, 0).getDate();
+      return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+  }
+
+  // Pattern 5: DD/MM/YYYY or DD-MM-YYYY (e.g. 28/02/2028 or 28-02-2028)
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const d = String(parseInt(ddmmyyyyMatch[1], 10)).padStart(2, '0');
+    const m = String(parseInt(ddmmyyyyMatch[2], 10)).padStart(2, '0');
+    const y = ddmmyyyyMatch[3];
+    return `${y}-${m}-${d}`;
+  }
+
+  // Try standard JS Date fallback
+  const parsedDate = new Date(str);
+  if (!isNaN(parsedDate.getTime())) {
+    return parsedDate.toISOString().split('T')[0];
+  }
+
+  // Ultimate fallback: 1 year from now
+  const fallback = new Date(Date.now() + 365 * 86400000);
+  return fallback.toISOString().split('T')[0];
+};
+
+// Helper: Normalize invoice date string into YYYY-MM-DD
+const normalizeInvoiceDate = (dateStr) => {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+  const str = String(dateStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmmyyyy) {
+    const d = String(parseInt(ddmmyyyy[1], 10)).padStart(2, '0');
+    const m = String(parseInt(ddmmyyyy[2], 10)).padStart(2, '0');
+    const y = ddmmyyyy[3];
+    return `${y}-${m}-${d}`;
+  }
+
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  return new Date().toISOString().split('T')[0];
+};
+
+// Helper: Sanitize & validate entire OCR parsed payload
+const sanitizeParsedData = (data) => {
+  if (!data) return data;
+  const supplier = {
+    name: (data.supplier && data.supplier.name) ? String(data.supplier.name).trim() : 'General Supplier',
+    gstNumber: (data.supplier && data.supplier.gstNumber) ? String(data.supplier.gstNumber).trim() : '',
+    phone: (data.supplier && data.supplier.phone) ? String(data.supplier.phone).trim() : '',
+    email: (data.supplier && data.supplier.email) ? String(data.supplier.email).trim() : '',
+    address: (data.supplier && data.supplier.address) ? String(data.supplier.address).trim() : ''
+  };
+
+  const invoice = {
+    invoiceNumber: (data.invoice && data.invoice.invoiceNumber) ? String(data.invoice.invoiceNumber).trim() : `INV-${Date.now()}`,
+    invoiceDate: normalizeInvoiceDate(data.invoice ? data.invoice.invoiceDate : null)
+  };
+
+  const items = Array.isArray(data.items) ? data.items.map(item => {
+    const qty = cleanNumber(item.quantity, 1);
+    const freeQty = cleanNumber(item.freeQuantity, 0);
+    const rate = cleanNumber(item.purchaseRate || item.rate, 0);
+    const mrp = cleanNumber(item.mrp, rate);
+    const disc = cleanNumber(item.discountPercent || item.discount, 0);
+    const gstP = cleanNumber(item.gstPercent || item.gst, 0);
+
+    return {
+      name: (item.name || item.medicineName || 'Scanned Product').trim(),
+      strength: (item.strength || '').trim(),
+      category: (item.category || 'Tablet').trim(),
+      genericName: (item.genericName || item.name || '').trim(),
+      batchNumber: (item.batchNumber || `BAT-${Date.now().toString().slice(-6)}`).trim(),
+      expiryDate: normalizeExpiryDate(item.expiryDate),
+      quantity: qty,
+      freeQuantity: freeQty,
+      purchaseRate: rate,
+      mrp: mrp,
+      discountPercent: disc,
+      gstPercent: gstP,
+      matchedMedicineId: item.matchedMedicineId || null,
+      matchedMedicineName: item.matchedMedicineName || null
+    };
+  }) : [];
+
+  let subTotal = cleanNumber(data.totals ? data.totals.subTotal : 0, 0);
+  let totalDiscount = cleanNumber(data.totals ? data.totals.totalDiscount : 0, 0);
+  let gstTotal = cleanNumber(data.totals ? data.totals.gstTotal : 0, 0);
+  let roundOff = cleanNumber(data.totals ? data.totals.roundOff : 0, 0);
+  let totalAmount = cleanNumber(data.totals ? data.totals.totalAmount : 0, 0);
+
+  // Recalculate totals if subtotal or totals are 0 or inconsistent
+  if (subTotal === 0 && items.length > 0) {
+    let calcSub = 0;
+    let calcGst = 0;
+    for (const it of items) {
+      const lineSub = it.quantity * it.purchaseRate * (1 - it.discountPercent / 100);
+      const lineGst = lineSub * (it.gstPercent / 100);
+      calcSub += lineSub;
+      calcGst += lineGst;
+    }
+    subTotal = Math.round(calcSub * 100) / 100;
+    gstTotal = Math.round(calcGst * 100) / 100;
+    totalAmount = Math.round((subTotal - totalDiscount + gstTotal + roundOff) * 100) / 100;
+  }
+
+  return {
+    supplier,
+    invoice,
+    items,
+    totals: {
+      subTotal,
+      totalDiscount,
+      gstTotal,
+      roundOff,
+      totalAmount
+    },
+    warnings: Array.isArray(data.warnings) ? data.warnings : []
+  };
+};
 
 // Helper: Convert file to generative AI inline part
 const fileToGenerativePart = (filePath, mimeType) => {
@@ -107,15 +290,15 @@ const runMockParser = async (filename) => {
   const invoiceDate = new Date(now.getTime() - (posHash % 10) * 86400000).toISOString().split('T')[0];
 
   const poolItems = [
-    { name: 'BISOHEART-5 10TAB', strength: '5mg', category: 'Tablet', genericName: 'Bisoprolol Fumarate', mrp: 106.06, rate: 80.81, gst: 5.0 },
-    { name: 'BISOHEART-2.5 10TAB', strength: '2.5mg', category: 'Tablet', genericName: 'Bisoprolol Fumarate', mrp: 69.41, rate: 52.88, gst: 5.0 },
-    { name: 'LIPIROSE-10 10 TAB', strength: '10mg', category: 'Tablet', genericName: 'Rosuvastatin', mrp: 133.86, rate: 101.99, gst: 5.0 },
-    { name: 'PARACETAMOL 650MG', strength: '650mg', category: 'Tablet', genericName: 'Paracetamol', mrp: 30.00, rate: 18.50, gst: 12.0 },
-    { name: 'AMOXICILLIN 500MG', strength: '500mg', category: 'Capsule', genericName: 'Amoxicillin', mrp: 85.00, rate: 58.00, gst: 12.0 },
-    { name: 'AZITHROMYCIN 500', strength: '500mg', category: 'Tablet', genericName: 'Azithromycin', mrp: 120.00, rate: 84.00, gst: 12.0 },
-    { name: 'PAN-D CAPSULES', strength: '40mg', category: 'Capsule', genericName: 'Pantoprazole + Domperidone', mrp: 145.00, rate: 98.00, gst: 12.0 },
-    { name: 'OMEE CAPSULES', strength: '20mg', category: 'Capsule', genericName: 'Omeprazole', mrp: 65.00, rate: 42.00, gst: 12.0 },
-    { name: 'MONTICOPE TABLETS', strength: '10mg', category: 'Tablet', genericName: 'Montelukast + Levocetirizine', mrp: 110.00, rate: 75.00, gst: 12.0 }
+    { name: 'BISOHEART-5 10TAB', strength: '5mg', category: 'Tablet', genericName: 'Bisoprolol Fumarate', mrp: 106.06, rate: 80.81, gst: 5.0, disc: 0.0 },
+    { name: 'BISOHEART-2.5 10TAB', strength: '2.5mg', category: 'Tablet', genericName: 'Bisoprolol Fumarate', mrp: 69.41, rate: 52.88, gst: 5.0, disc: 2.0 },
+    { name: 'LIPIROSE-10 10 TAB', strength: '10mg', category: 'Tablet', genericName: 'Rosuvastatin', mrp: 133.86, rate: 101.99, gst: 5.0, disc: 5.0 },
+    { name: 'PARACETAMOL 650MG', strength: '650mg', category: 'Tablet', genericName: 'Paracetamol', mrp: 30.00, rate: 18.50, gst: 12.0, disc: 0.0 },
+    { name: 'AMOXICILLIN 500MG', strength: '500mg', category: 'Capsule', genericName: 'Amoxicillin', mrp: 85.00, rate: 58.00, gst: 12.0, disc: 0.0 },
+    { name: 'AZITHROMYCIN 500', strength: '500mg', category: 'Tablet', genericName: 'Azithromycin', mrp: 120.00, rate: 84.00, gst: 12.0, disc: 5.0 },
+    { name: 'PAN-D CAPSULES', strength: '40mg', category: 'Capsule', genericName: 'Pantoprazole + Domperidone', mrp: 145.00, rate: 98.00, gst: 12.0, disc: 0.0 },
+    { name: 'OMEE CAPSULES', strength: '20mg', category: 'Capsule', genericName: 'Omeprazole', mrp: 65.00, rate: 42.00, gst: 12.0, disc: 0.0 },
+    { name: 'MONTICOPE TABLETS', strength: '10mg', category: 'Tablet', genericName: 'Montelukast + Levocetirizine', mrp: 110.00, rate: 75.00, gst: 12.0, disc: 2.5 }
   ];
 
   const numItems = 3 + (posHash % 4);
@@ -132,7 +315,7 @@ const runMockParser = async (filename) => {
     const expMonth = String(1 + ((posHash + i) % 12)).padStart(2, '0');
     const expiryDate = `${expYear}-${expMonth}-28`;
 
-    const itemSub = qty * itemTemplate.rate;
+    const itemSub = qty * itemTemplate.rate * (1 - itemTemplate.disc / 100);
     subTotal += itemSub;
     rawGst += itemSub * (itemTemplate.gst / 100);
 
@@ -147,6 +330,7 @@ const runMockParser = async (filename) => {
       freeQuantity: freeQty,
       purchaseRate: itemTemplate.rate,
       mrp: itemTemplate.mrp,
+      discountPercent: itemTemplate.disc,
       gstPercent: itemTemplate.gst
     });
   }
@@ -156,7 +340,7 @@ const runMockParser = async (filename) => {
   const gstTotal = Math.round(rawGst * 0.95 * 100) / 100;
   const totalAmount = Math.round((subTotal - totalDiscount + gstTotal) * 100) / 100;
 
-  return {
+  return sanitizeParsedData({
     supplier: selectedSupplier,
     invoice: {
       invoiceNumber,
@@ -171,7 +355,7 @@ const runMockParser = async (filename) => {
       totalAmount
     },
     warnings: ['Data extracted via AI OCR. Verify before confirming.']
-  };
+  });
 };
 
 // @desc    Upload invoice and parse via Gemini (or simulator)
@@ -206,13 +390,23 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
 
         if (apiKey && apiKey !== 'YOUR_GEMINI_API_KEY_HERE') {
           try {
-            console.log('Sending invoice to Gemini API (gemini-1.5-flash)...');
+            console.log('Sending invoice to Gemini API...');
             const genAI = new GoogleGenerativeAI(apiKey);
-            let model;
-            try {
-              model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-            } catch (mErr) {
-              model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const modelNames = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            let model = null;
+            let lastErr = null;
+
+            for (const mName of modelNames) {
+              try {
+                model = genAI.getGenerativeModel({ model: mName });
+                if (model) break;
+              } catch (e) {
+                lastErr = e;
+              }
+            }
+
+            if (!model) {
+              throw lastErr || new Error('Failed to initialize any Gemini model instance.');
             }
 
             const mimeType = req.file.mimetype;
@@ -240,21 +434,24 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
                - "category": Form ("Tablet", "Capsule", "Syrup", "Injection", etc.).
                - "genericName": Generic molecule name if visible, else product name.
                - "batchNumber": Batch column value (e.g. "L85Z006", "L75Z004"). Do not miss this!
-               - "expiryDate": Exp column (convert e.g. "2/28" to "2028-02-28", "7/27" to "2027-07-31", "12/27" to "2027-12-31"). Convert to YYYY-MM-DD.
+               - "expiryDate": Exp column (convert e.g. "02/28" to "2028-02-29", "7/27" to "2027-07-31", "12/27" to "2027-12-31"). ALWAYS return YYYY-MM-DD.
                - "quantity": Numeric "Qty" column value.
                - "freeQuantity": Numeric "Free" column value if present, else 0.
                - "purchaseRate": Numeric "Rate" column value (e.g. 80.81).
                - "mrp": Numeric "N.Mrp" or "MRP" column value (e.g. 106.06).
+               - "discountPercent": Numeric item level discount percentage if mentioned (e.g. 5.0), else 0.
                - "gstPercent": Numeric "Gst" column percentage (e.g. 5.00).
 
             4. Invoice Summary & Totals:
-               - "subTotal": SUB TOTAL value or sum of (quantity * purchaseRate).
+               - "subTotal": SUB TOTAL value or sum of item amounts.
                - "totalDiscount": Extract "CD", "Cash Discount", "DISC", "Trade Discount", or bill discount sum from bottom table.
                - "gstTotal": "GST PAYBLE" or "TOTAL GST" value from bottom table.
                - "roundOff": Coin adjustment or R.Off if present, else 0.
                - "totalAmount": "GRAND TOTAL" or net payable amount on the invoice (e.g. 41922.00).
 
-            Return ONLY raw valid JSON:
+            IMPORTANT: Ensure all numbers are clean numeric floats/ints (NO currency symbols, NO commas).
+
+            Return ONLY raw valid JSON matching this schema:
             {
               "supplier": { "name": "string", "gstNumber": "string", "phone": "string", "email": "string", "address": "string" },
               "invoice": { "invoiceNumber": "string", "invoiceDate": "YYYY-MM-DD" },
@@ -270,6 +467,7 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
                   "freeQuantity": number,
                   "purchaseRate": number,
                   "mrp": number,
+                  "discountPercent": number,
                   "gstPercent": number
                 }
               ],
@@ -288,13 +486,12 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
             let text = result.response.text().trim();
             
             // Strip any markdown codeblock wrapping if Gemini adds it
-            if (text.startsWith('```json')) {
-              text = text.substring(7, text.length - 3).trim();
-            } else if (text.startsWith('```')) {
-              text = text.substring(3, text.length - 3).trim();
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              text = jsonMatch[0];
             }
 
-            resultData = JSON.parse(text);
+            resultData = sanitizeParsedData(JSON.parse(text));
           } catch (apiErr) {
             console.warn('Gemini API call failed, using simulator fallback:', apiErr.message);
             resultData = await runMockParser(req.file.originalname);
@@ -343,7 +540,7 @@ router.get('/result/:jobId', protect, async (req, res) => {
     }
 
     // Perform medicine matching against existing database for all parsed items
-    const parsedData = job.parsedData;
+    const parsedData = sanitizeParsedData(job.parsedData);
     const matchedItems = [];
 
     for (const item of parsedData.items) {
@@ -565,13 +762,14 @@ const fetchCreatePurchase = async (req, supplierId) => {
       });
     }
 
-    const totalDisc = parseFloat(totalDiscount || req.body.discountAmount || 0);
+    const roundOffVal = cleanNumber(req.body.roundOff || (req.body.totals ? req.body.totals.roundOff : 0), 0);
+    const totalDisc = cleanNumber(totalDiscount || req.body.discountAmount || (req.body.totals ? req.body.totals.totalDiscount : 0), 0);
     let effectiveGstTotal = gstTotal;
     if (subTotal > 0 && totalDisc > 0) {
       const discRatio = totalDisc / subTotal;
       effectiveGstTotal = gstTotal * (1 - discRatio);
     }
-    const netPayable = subTotal - totalDisc + effectiveGstTotal;
+    const netPayable = subTotal - totalDisc + effectiveGstTotal + roundOffVal;
 
     const purchase = new Purchase({
       supplier: supplierId,

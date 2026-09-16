@@ -17,6 +17,7 @@ interface OcrItem {
   freeQuantity?: number;
   purchaseRate: number;
   mrp: number;
+  discountPercent?: number;
   gstPercent: number;
   matchedMedicineId?: string | null;
   matchedMedicineName?: string | null;
@@ -37,7 +38,9 @@ interface OcrInvoice {
 
 interface OcrTotals {
   subTotal: number;
+  totalDiscount?: number;
   gstTotal: number;
+  roundOff?: number;
   totalAmount: number;
 }
 
@@ -185,6 +188,7 @@ export const OcrUploadScreen: React.FC = () => {
                   freeQuantity: parseFloat(it.freeQuantity) || 0,
                   purchaseRate: parseFloat(it.purchaseRate || it.rate) || 0,
                   mrp: parseFloat(it.mrp) || 0,
+                  discountPercent: parseFloat(it.discountPercent || it.discount) || 0,
                   gstPercent: parseFloat(it.gstPercent) || 0,
                   matchedMedicineId: it.matchedMedicineId || null,
                   matchedMedicineName: it.matchedMedicineName || null,
@@ -226,7 +230,7 @@ export const OcrUploadScreen: React.FC = () => {
     const updatedItems = [...parsedResult.items];
     const item = { ...updatedItems[idx] };
 
-    if (key === 'quantity' || key === 'freeQuantity' || key === 'purchaseRate' || key === 'mrp' || key === 'gstPercent') {
+    if (key === 'quantity' || key === 'freeQuantity' || key === 'purchaseRate' || key === 'mrp' || key === 'discountPercent' || key === 'gstPercent') {
       const parsedNum = parseFloat(val) || 0;
       (item as any)[key] = parsedNum;
     } else {
@@ -240,22 +244,39 @@ export const OcrUploadScreen: React.FC = () => {
   const recalculateTotals = (items: OcrItem[]) => {
     if (!parsedResult) return;
     let subTotal = 0;
-    let gstTotal = 0;
+    let rawGstTotal = 0;
 
     items.forEach((item) => {
-      const itemSub = item.quantity * item.purchaseRate;
-      const itemGst = itemSub * (item.gstPercent / 100);
+      const qty = item.quantity || 0;
+      const rate = item.purchaseRate || 0;
+      const disc = item.discountPercent || 0;
+      const gstP = item.gstPercent || 0;
+
+      const itemSub = qty * rate * (1 - disc / 100);
+      const itemGst = itemSub * (gstP / 100);
+
       subTotal += itemSub;
-      gstTotal += itemGst;
+      rawGstTotal += itemGst;
     });
+
+    const totalDisc = parsedResult.totals?.totalDiscount || 0;
+    const rOff = parsedResult.totals?.roundOff || 0;
+
+    let effectiveGstTotal = rawGstTotal;
+    if (subTotal > 0 && totalDisc > 0) {
+      const discRatio = totalDisc / subTotal;
+      effectiveGstTotal = rawGstTotal * (1 - discRatio);
+    }
 
     setParsedResult({
       ...parsedResult,
       items,
       totals: {
         subTotal: Math.round(subTotal * 100) / 100,
-        gstTotal: Math.round(gstTotal * 100) / 100,
-        totalAmount: Math.round((subTotal + gstTotal) * 100) / 100,
+        totalDiscount: Math.round(totalDisc * 100) / 100,
+        gstTotal: Math.round(effectiveGstTotal * 100) / 100,
+        roundOff: Math.round(rOff * 100) / 100,
+        totalAmount: Math.round((subTotal - totalDisc + effectiveGstTotal + rOff) * 100) / 100,
       },
     });
   };

@@ -176,8 +176,9 @@ import { ApiService } from '../core/services/api.service';
                     <th>Free Qty</th>
                     <th>Purchase Rate</th>
                     <th>MRP</th>
+                    <th>Disc %</th>
                     <th>GST %</th>
-                    <th>Amount</th>
+                    <th>Line Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -191,9 +192,9 @@ import { ApiService } from '../core/services/api.service';
                           <select [(ngModel)]="item.matchedMedicineId" 
                                   (change)="onMatchChanged(item)"
                                   class="glass-input glass-select select-match mt-1">
-                            <option [value]="null">Register as [NEW MEDICINE]</option>
+                            <option [ngValue]="null">Register as [NEW MEDICINE]</option>
                             @for (med of dbMedicines(); track med._id) {
-                              <option [value]="med._id">{{ med.name }} ({{ med.strength }})</option>
+                              <option [ngValue]="med._id">{{ med.name }} ({{ med.strength }})</option>
                             }
                           </select>
                           
@@ -206,11 +207,12 @@ import { ApiService } from '../core/services/api.service';
                       </td>
 
                       <td><input type="text" [(ngModel)]="item.batchNumber" class="table-input glass-input" style="width: 100px;"></td>
-                      <td><input type="date" [(ngModel)]="item.expiryDate" class="table-input glass-input" style="width: 120px;"></td>
+                      <td><input type="date" [(ngModel)]="item.expiryDate" class="table-input glass-input" style="width: 125px;"></td>
                       <td><input type="number" [(ngModel)]="item.quantity" (input)="recalculateTotals()" class="table-input glass-input" style="width: 65px;"></td>
                       <td><input type="number" [(ngModel)]="item.freeQuantity" (input)="recalculateTotals()" class="table-input glass-input" style="width: 60px;"></td>
                       <td><input type="number" [(ngModel)]="item.purchaseRate" (input)="recalculateTotals()" class="table-input glass-input" style="width: 75px;"></td>
                       <td><input type="number" [(ngModel)]="item.mrp" class="table-input glass-input" style="width: 75px;"></td>
+                      <td><input type="number" [(ngModel)]="item.discountPercent" (input)="recalculateTotals()" class="table-input glass-input" style="width: 60px;"></td>
                       <td><input type="number" [(ngModel)]="item.gstPercent" (input)="recalculateTotals()" class="table-input glass-input" style="width: 60px;"></td>
                       <td><strong>₹{{ getItemTotal(item) | number:'1.2-2' }}</strong></td>
                     </tr>
@@ -564,14 +566,29 @@ export class InvoiceParserComponent implements OnDestroy {
     this.clearPolling();
   }
 
-  // --- Calculations ---
-  getItemTotal(item: any): number {
-    const qty = parseFloat(item.quantity) || 0;
-    const rate = parseFloat(item.purchaseRate) || 0;
-    const disc = parseFloat(item.discountPercent || 0);
+  // --- Calculations & Numeric Formatting Helpers ---
+  cleanNum(val: any, defaultVal = 0): number {
+    if (val === null || val === undefined || val === '') return defaultVal;
+    if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
+    const str = String(val).replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? defaultVal : parsed;
+  }
 
-    const itemSub = qty * rate * (1 - disc / 100);
-    return Math.round(itemSub * 100) / 100;
+  getItemSubtotal(item: any): number {
+    const qty = this.cleanNum(item.quantity, 0);
+    const rate = this.cleanNum(item.purchaseRate, 0);
+    const disc = this.cleanNum(item.discountPercent, 0);
+
+    const sub = qty * rate * (1 - disc / 100);
+    return Math.round(sub * 100) / 100;
+  }
+
+  getItemTotal(item: any): number {
+    const sub = this.getItemSubtotal(item);
+    const gstP = this.cleanNum(item.gstPercent, 0);
+    const gstAmt = sub * (gstP / 100);
+    return Math.round((sub + gstAmt) * 100) / 100;
   }
 
   recalculateTotals(): void {
@@ -582,19 +599,16 @@ export class InvoiceParserComponent implements OnDestroy {
     let rawGstTotal = 0;
 
     for (const item of result.items) {
-      const qty = parseFloat(item.quantity) || 0;
-      const rate = parseFloat(item.purchaseRate) || 0;
-      const gstP = parseFloat(item.gstPercent) || 0;
-
-      const itemSub = qty * rate;
+      const itemSub = this.getItemSubtotal(item);
+      const gstP = this.cleanNum(item.gstPercent, 0);
       const itemGst = itemSub * (gstP / 100);
 
       subTotal += itemSub;
       rawGstTotal += itemGst;
     }
 
-    const totDisc = parseFloat(result.totals.totalDiscount) || 0;
-    const rOff = parseFloat(result.totals.roundOff) || 0;
+    const totDisc = this.cleanNum(result.totals.totalDiscount, 0);
+    const rOff = this.cleanNum(result.totals.roundOff, 0);
 
     let effectiveGstTotal = rawGstTotal;
     if (subTotal > 0 && totDisc > 0) {

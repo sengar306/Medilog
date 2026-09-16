@@ -3,6 +3,19 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+// Polyfill fetch for Node.js environments running @google/generative-ai
+if (!global.fetch) {
+  try {
+    const nodeFetch = require('node-fetch');
+    global.fetch = nodeFetch;
+    global.Headers = nodeFetch.Headers;
+    global.Request = nodeFetch.Request;
+    global.Response = nodeFetch.Response;
+  } catch (e) {
+    console.warn('node-fetch polyfill initialization notice:', e.message);
+  }
+}
+
 const { connectDB } = require('./config/db');
 const Role = require('./models/Role');
 const User = require('./models/User');

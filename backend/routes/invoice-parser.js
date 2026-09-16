@@ -194,18 +194,41 @@ const sanitizeParsedData = (data) => {
   let roundOff = cleanNumber(data.totals ? data.totals.roundOff : 0, 0);
   let totalAmount = cleanNumber(data.totals ? data.totals.totalAmount : 0, 0);
 
-  // Recalculate totals if subtotal or totals are 0 or inconsistent
+  let calcSub = 0;
+  let calcGst = 0;
+  let itemDiscSum = 0;
+  for (const it of items) {
+    const lineGross = it.quantity * it.purchaseRate;
+    const lineDisc = lineGross * (it.discountPercent / 100);
+    const lineSub = lineGross - lineDisc;
+    const lineGst = lineSub * (it.gstPercent / 100);
+
+    calcSub += lineSub;
+    calcGst += lineGst;
+    itemDiscSum += lineDisc;
+  }
+  calcSub = Math.round(calcSub * 100) / 100;
+  calcGst = Math.round(calcGst * 100) / 100;
+  itemDiscSum = Math.round(itemDiscSum * 100) / 100;
+
   if (subTotal === 0 && items.length > 0) {
-    let calcSub = 0;
-    let calcGst = 0;
-    for (const it of items) {
-      const lineSub = it.quantity * it.purchaseRate * (1 - it.discountPercent / 100);
-      const lineGst = lineSub * (it.gstPercent / 100);
-      calcSub += lineSub;
-      calcGst += lineGst;
-    }
-    subTotal = Math.round(calcSub * 100) / 100;
-    gstTotal = Math.round(calcGst * 100) / 100;
+    subTotal = calcSub;
+  }
+
+  if (gstTotal === 0 && items.length > 0) {
+    gstTotal = calcGst;
+  }
+
+  // If totalDiscount is 0 but item-level discounts exist, patch totalDiscount with itemDiscSum
+  if (totalDiscount === 0 && itemDiscSum > 0) {
+    totalDiscount = itemDiscSum;
+  }
+
+  // Auto-calculate roundOff if roundOff is 0 and totalAmount is given
+  const expectedBeforeRound = Math.round((subTotal - totalDiscount + gstTotal) * 100) / 100;
+  if (roundOff === 0 && totalAmount > 0 && Math.abs(totalAmount - expectedBeforeRound) < 5.0) {
+    roundOff = Math.round((totalAmount - expectedBeforeRound) * 100) / 100;
+  } else if (totalAmount === 0) {
     totalAmount = Math.round((subTotal - totalDiscount + gstTotal + roundOff) * 100) / 100;
   }
 

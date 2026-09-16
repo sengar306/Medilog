@@ -135,6 +135,21 @@ import { ApiService } from '../core/services/api.service';
                   <span>GST Taxes:</span>
                   <span>₹{{ parsedResult().totals.gstTotal | number:'1.2-2' }}</span>
                 </div>
+
+                <div class="totals-row align-items-center mt-1" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>Round Off / Adj:</span>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="color: #94a3b8; font-weight: 600;">₹</span>
+                    <input type="number" 
+                           [(ngModel)]="parsedResult().totals.roundOff" 
+                           (input)="recalculateTotals()"
+                           name="roundOff"
+                           class="glass-input text-right" 
+                           style="width: 100px; height: 30px; padding: 2px 8px; font-size: 0.9rem; font-weight: 600;" 
+                           step="0.01"
+                           placeholder="0.00">
+                  </div>
+                </div>
                 
                 <div class="totals-row net-row mt-2">
                   <span>Net Payable:</span>
@@ -607,8 +622,17 @@ export class InvoiceParserComponent implements OnDestroy {
       rawGstTotal += itemGst;
     }
 
-    const totDisc = this.cleanNum(result.totals.totalDiscount, 0);
-    const rOff = this.cleanNum(result.totals.roundOff, 0);
+    subTotal = Math.round(subTotal * 100) / 100;
+    rawGstTotal = Math.round(rawGstTotal * 100) / 100;
+
+    let totDisc = this.cleanNum(result.totals.totalDiscount, 0);
+    let rOff = this.cleanNum(result.totals.roundOff, 0);
+
+    // If roundOff is 0, but extracted totalAmount differs slightly from (subTotal - totDisc + rawGstTotal), auto-calculate roundOff adjustment
+    const expectedBeforeRound = Math.round((subTotal - totDisc + rawGstTotal) * 100) / 100;
+    if (rOff === 0 && result.totals.totalAmount && Math.abs(result.totals.totalAmount - expectedBeforeRound) < 5.0) {
+      rOff = Math.round((result.totals.totalAmount - expectedBeforeRound) * 100) / 100;
+    }
 
     let effectiveGstTotal = rawGstTotal;
     if (subTotal > 0 && totDisc > 0) {
@@ -616,8 +640,10 @@ export class InvoiceParserComponent implements OnDestroy {
       effectiveGstTotal = rawGstTotal * (1 - discRatio);
     }
 
-    result.totals.subTotal = Math.round(subTotal * 100) / 100;
+    result.totals.subTotal = subTotal;
+    result.totals.totalDiscount = totDisc;
     result.totals.gstTotal = Math.round(effectiveGstTotal * 100) / 100;
+    result.totals.roundOff = rOff;
     result.totals.totalAmount = Math.round((subTotal - totDisc + effectiveGstTotal + rOff) * 100) / 100;
   }
 

@@ -151,9 +151,19 @@ import { ApiService } from '../core/services/api.service';
                   </div>
                 </div>
                 
-                <div class="totals-row net-row mt-2">
-                  <span>Net Payable:</span>
-                  <span class="gradient-text">₹{{ parsedResult().totals.totalAmount | number:'1.2-2' }}</span>
+                <div class="totals-row net-row mt-2 align-items-center" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>Grand Total (Bill):</span>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <span class="gradient-text" style="font-weight: 700; font-size: 1.1rem;">₹</span>
+                    <input type="number" 
+                           [(ngModel)]="parsedResult().totals.totalAmount" 
+                           (input)="onGrandTotalChanged()"
+                           name="grandTotal"
+                           class="glass-input text-right gradient-text" 
+                           style="width: 110px; height: 34px; padding: 2px 8px; font-size: 1.1rem; font-weight: 700; border: 1px solid var(--primary);" 
+                           step="0.01"
+                           placeholder="0.00">
+                  </div>
                 </div>
               </div>
 
@@ -606,6 +616,19 @@ export class InvoiceParserComponent implements OnDestroy {
     return Math.round((sub + gstAmt) * 100) / 100;
   }
 
+  onGrandTotalChanged(): void {
+    const result = this.parsedResult();
+    if (!result || !result.items || !result.totals) return;
+
+    const subTotal = this.cleanNum(result.totals.subTotal, 0);
+    const totDisc = this.cleanNum(result.totals.totalDiscount, 0);
+    const gstTotal = this.cleanNum(result.totals.gstTotal, 0);
+    const targetGrandTotal = this.cleanNum(result.totals.totalAmount, 0);
+
+    const expectedBeforeRound = Math.round((subTotal - totDisc + gstTotal) * 100) / 100;
+    result.totals.roundOff = Math.round((targetGrandTotal - expectedBeforeRound) * 100) / 100;
+  }
+
   recalculateTotals(): void {
     const result = this.parsedResult();
     if (!result || !result.items || !result.totals) return;
@@ -628,23 +651,29 @@ export class InvoiceParserComponent implements OnDestroy {
     let totDisc = this.cleanNum(result.totals.totalDiscount, 0);
     let rOff = this.cleanNum(result.totals.roundOff, 0);
 
-    // If roundOff is 0, but extracted totalAmount differs slightly from (subTotal - totDisc + rawGstTotal), auto-calculate roundOff adjustment
-    const expectedBeforeRound = Math.round((subTotal - totDisc + rawGstTotal) * 100) / 100;
-    if (rOff === 0 && result.totals.totalAmount && Math.abs(result.totals.totalAmount - expectedBeforeRound) < 5.0) {
-      rOff = Math.round((result.totals.totalAmount - expectedBeforeRound) * 100) / 100;
-    }
-
     let effectiveGstTotal = rawGstTotal;
     if (subTotal > 0 && totDisc > 0) {
       const discRatio = totDisc / subTotal;
       effectiveGstTotal = rawGstTotal * (1 - discRatio);
     }
+    effectiveGstTotal = Math.round(effectiveGstTotal * 100) / 100;
+
+    // If totalAmount exists from bill OCR extraction, auto-calculate roundOff to balance equation
+    if (result.totals.totalAmount && rOff === 0) {
+      const targetTotal = this.cleanNum(result.totals.totalAmount, 0);
+      const expectedBeforeRound = Math.round((subTotal - totDisc + effectiveGstTotal) * 100) / 100;
+      if (Math.abs(targetTotal - expectedBeforeRound) < 10.0) {
+        rOff = Math.round((targetTotal - expectedBeforeRound) * 100) / 100;
+      }
+    }
+
+    const finalAmount = Math.round((subTotal - totDisc + effectiveGstTotal + rOff) * 100) / 100;
 
     result.totals.subTotal = subTotal;
     result.totals.totalDiscount = totDisc;
-    result.totals.gstTotal = Math.round(effectiveGstTotal * 100) / 100;
+    result.totals.gstTotal = effectiveGstTotal;
     result.totals.roundOff = rOff;
-    result.totals.totalAmount = Math.round((subTotal - totDisc + effectiveGstTotal + rOff) * 100) / 100;
+    result.totals.totalAmount = result.totals.totalAmount ? this.cleanNum(result.totals.totalAmount, finalAmount) : finalAmount;
   }
 
   // --- Confirm Import ---

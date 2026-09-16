@@ -388,123 +388,131 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
         let resultData = null;
         const apiKey = process.env.GEMINI_API_KEY;
 
-        if (apiKey && apiKey !== 'YOUR_GEMINI_API_KEY_HERE') {
-          try {
-            console.log('Sending invoice to Gemini API...');
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const modelNames = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-            let model = null;
-            let lastErr = null;
+        if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+          throw new Error('GEMINI_API_KEY is not configured in backend environment variables.');
+        }
 
-            for (const mName of modelNames) {
-              try {
-                model = genAI.getGenerativeModel({ model: mName });
-                if (model) break;
-              } catch (e) {
-                lastErr = e;
-              }
-            }
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const mimeType = req.file.mimetype;
+        const imagePart = fileToGenerativePart(req.file.path, mimeType);
 
-            if (!model) {
-              throw lastErr || new Error('Failed to initialize any Gemini model instance.');
-            }
+        const prompt = `
+        You are an expert OCR parser for Indian Medical / Pharmaceutical Purchase Invoices.
+        Extract all printed data from this invoice image or PDF and return structured JSON.
 
-            const mimeType = req.file.mimetype;
-            const imagePart = fileToGenerativePart(req.file.path, mimeType);
+        CRITICAL EXTRACTION RULES:
+        1. Supplier Details:
+           - "name": Firm/Company name at top header (e.g. "SARASWATI PHARMACEUTICALS").
+           - "gstNumber": Supplier GSTIN.
+           - "phone": Phone numbers.
+           - "email": Email address.
+           - "address": Address text.
 
-            const prompt = `
-            You are an expert OCR parser for Indian Medical / Pharmaceutical Purchase Invoices.
-            Extract all printed data from this invoice image or PDF and return structured JSON.
+        2. Invoice Header:
+           - "invoiceNumber": QTN No, Bill No, Invoice No (e.g. "A0646").
+           - "invoiceDate": Invoice Date in YYYY-MM-DD format (convert e.g. "05-06-2026" to "2026-06-05").
 
-            CRITICAL EXTRACTION RULES:
-            1. Supplier Details:
-               - "name": Firm/Company name at top header (e.g. "SARASWATI PHARMACEUTICALS").
-               - "gstNumber": Supplier GSTIN.
-               - "phone": Phone numbers.
-               - "email": Email address.
-               - "address": Address text.
+        3. Items Table:
+           - "name": Exact product name (e.g. "BISOHEART-5 10TAB").
+           - "strength": Dosage strength if mentioned (e.g. "5mg", "10mg"), else "".
+           - "category": Form ("Tablet", "Capsule", "Syrup", "Injection", etc.).
+           - "genericName": Generic molecule name if visible, else product name.
+           - "batchNumber": Batch column value (e.g. "L85Z006", "L75Z004"). Do not miss this!
+           - "expiryDate": Exp column (convert e.g. "02/28" to "2028-02-29", "7/27" to "2027-07-31", "12/27" to "2027-12-31"). ALWAYS return YYYY-MM-DD.
+           - "quantity": Numeric "Qty" column value.
+           - "freeQuantity": Numeric "Free" column value if present, else 0.
+           - "purchaseRate": Numeric "Rate" column value (e.g. 80.81).
+           - "mrp": Numeric "N.Mrp" or "MRP" column value (e.g. 106.06).
+           - "discountPercent": Numeric item level discount percentage if mentioned (e.g. 5.0), else 0.
+           - "gstPercent": Numeric "Gst" column percentage (e.g. 5.00).
 
-            2. Invoice Header:
-               - "invoiceNumber": QTN No, Bill No, Invoice No (e.g. "A0646").
-               - "invoiceDate": Invoice Date in YYYY-MM-DD format (convert e.g. "05-06-2026" to "2026-06-05").
+        4. Invoice Summary & Totals:
+           - "subTotal": SUB TOTAL value or sum of item amounts.
+           - "totalDiscount": Extract "CD", "Cash Discount", "DISC", "Trade Discount", or bill discount sum from bottom table.
+           - "gstTotal": "GST PAYBLE" or "TOTAL GST" value from bottom table.
+           - "roundOff": Coin adjustment or R.Off if present, else 0.
+           - "totalAmount": "GRAND TOTAL" or net payable amount on the invoice (e.g. 41922.00).
 
-            3. Items Table:
-               - "name": Exact product name (e.g. "BISOHEART-5 10TAB").
-               - "strength": Dosage strength if mentioned (e.g. "5mg", "10mg"), else "".
-               - "category": Form ("Tablet", "Capsule", "Syrup", "Injection", etc.).
-               - "genericName": Generic molecule name if visible, else product name.
-               - "batchNumber": Batch column value (e.g. "L85Z006", "L75Z004"). Do not miss this!
-               - "expiryDate": Exp column (convert e.g. "02/28" to "2028-02-29", "7/27" to "2027-07-31", "12/27" to "2027-12-31"). ALWAYS return YYYY-MM-DD.
-               - "quantity": Numeric "Qty" column value.
-               - "freeQuantity": Numeric "Free" column value if present, else 0.
-               - "purchaseRate": Numeric "Rate" column value (e.g. 80.81).
-               - "mrp": Numeric "N.Mrp" or "MRP" column value (e.g. 106.06).
-               - "discountPercent": Numeric item level discount percentage if mentioned (e.g. 5.0), else 0.
-               - "gstPercent": Numeric "Gst" column percentage (e.g. 5.00).
+        IMPORTANT: Ensure all numbers are clean numeric floats/ints (NO currency symbols, NO commas).
 
-            4. Invoice Summary & Totals:
-               - "subTotal": SUB TOTAL value or sum of item amounts.
-               - "totalDiscount": Extract "CD", "Cash Discount", "DISC", "Trade Discount", or bill discount sum from bottom table.
-               - "gstTotal": "GST PAYBLE" or "TOTAL GST" value from bottom table.
-               - "roundOff": Coin adjustment or R.Off if present, else 0.
-               - "totalAmount": "GRAND TOTAL" or net payable amount on the invoice (e.g. 41922.00).
-
-            IMPORTANT: Ensure all numbers are clean numeric floats/ints (NO currency symbols, NO commas).
-
-            Return ONLY raw valid JSON matching this schema:
+        Return ONLY raw valid JSON matching this schema:
+        {
+          "supplier": { "name": "string", "gstNumber": "string", "phone": "string", "email": "string", "address": "string" },
+          "invoice": { "invoiceNumber": "string", "invoiceDate": "YYYY-MM-DD" },
+          "items": [
             {
-              "supplier": { "name": "string", "gstNumber": "string", "phone": "string", "email": "string", "address": "string" },
-              "invoice": { "invoiceNumber": "string", "invoiceDate": "YYYY-MM-DD" },
-              "items": [
-                {
-                  "name": "string",
-                  "strength": "string",
-                  "category": "string",
-                  "genericName": "string",
-                  "batchNumber": "string",
-                  "expiryDate": "YYYY-MM-DD",
-                  "quantity": number,
-                  "freeQuantity": number,
-                  "purchaseRate": number,
-                  "mrp": number,
-                  "discountPercent": number,
-                  "gstPercent": number
-                }
-              ],
-              "totals": {
-                "subTotal": number,
-                "totalDiscount": number,
-                "gstTotal": number,
-                "roundOff": number,
-                "totalAmount": number
-              },
-              "warnings": ["string"]
+              "name": "string",
+              "strength": "string",
+              "category": "string",
+              "genericName": "string",
+              "batchNumber": "string",
+              "expiryDate": "YYYY-MM-DD",
+              "quantity": number,
+              "freeQuantity": number,
+              "purchaseRate": number,
+              "mrp": number,
+              "discountPercent": number,
+              "gstPercent": number
             }
-          `;
+          ],
+          "totals": {
+            "subTotal": number,
+            "totalDiscount": number,
+            "gstTotal": number,
+            "roundOff": number,
+            "totalAmount": number
+          },
+          "warnings": ["string"]
+        }
+      `;
 
+        const modelName = 'gemini-3.6-flash';
+        let maxAttempts = 3;
+        let lastErr = null;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            console.log(`Sending invoice file '${req.file.originalname}' to Gemini API ('${modelName}', Attempt ${attempt}/${maxAttempts})...`);
+            const model = genAI.getGenerativeModel({ model: modelName });
             const result = await model.generateContent([prompt, imagePart]);
             let text = result.response.text().trim();
-            
-            // Strip any markdown codeblock wrapping if Gemini adds it
+
             const jsonMatch = text.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               text = jsonMatch[0];
             }
 
             resultData = sanitizeParsedData(JSON.parse(text));
-          } catch (apiErr) {
-            console.warn('Gemini API call failed, using simulator fallback:', apiErr.message);
-            resultData = await runMockParser(req.file.originalname);
+            if (resultData) {
+              console.log(`Live OCR successful via Gemini '${modelName}'! Extracted ${resultData.items.length} items.`);
+              break;
+            }
+          } catch (mErr) {
+            console.warn(`Gemini API attempt ${attempt} notice:`, mErr.message);
+            lastErr = mErr;
+            if (mErr.message && (mErr.message.includes('503') || mErr.message.includes('high demand')) && attempt < maxAttempts) {
+              const delayMs = attempt * 1500;
+              console.log(`Gemini API high demand (503). Retrying attempt ${attempt + 1} in ${delayMs / 1000}s...`);
+              await new Promise(r => setTimeout(r, delayMs));
+            } else {
+              break;
+            }
           }
-        } else {
-          resultData = await runMockParser(req.file.originalname);
         }
 
-        // Job Success
+        if (!resultData) {
+          let errMsg = lastErr ? lastErr.message : 'Gemini AI live OCR processing failed.';
+          if (errMsg.includes('503') || errMsg.includes('high demand')) {
+            errMsg = 'Google Gemini AI servers are currently experiencing temporary high demand (503). Please click scan again in a few seconds.';
+          }
+          throw new Error(errMsg);
+        }
+
+        // Job Success with live data
         savedJob.status = 'Success';
         savedJob.parsedData = resultData;
         await savedJob.save();
-        await logAudit('Invoice Parsed', 'AI Parser', `Parsed invoice file '${req.file.originalname}'`, req.user._id);
+        await logAudit('Invoice Parsed', 'AI Parser', `Parsed invoice file '${req.file.originalname}' via Live Gemini AI`, req.user._id);
 
       } catch (err) {
         console.error('Invoice background parsing failed:', err);

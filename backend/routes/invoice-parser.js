@@ -189,7 +189,9 @@ const sanitizeParsedData = (data) => {
   }) : [];
 
   let subTotal = cleanNumber(data.totals ? data.totals.subTotal : 0, 0);
-  let totalDiscount = cleanNumber(data.totals ? data.totals.totalDiscount : 0, 0);
+  let schDiscount = cleanNumber(data.totals ? data.totals.schDiscount : 0, 0);
+  let billDiscount = cleanNumber(data.totals ? data.totals.billDiscount : 0, 0);
+  let totalDiscount = cleanNumber(data.totals ? data.totals.totalDiscount : (schDiscount + billDiscount), 0);
   let gstTotal = cleanNumber(data.totals ? data.totals.gstTotal : 0, 0);
   let roundOff = cleanNumber(data.totals ? data.totals.roundOff : 0, 0);
   let totalAmount = cleanNumber(data.totals ? data.totals.totalAmount : 0, 0);
@@ -209,26 +211,18 @@ const sanitizeParsedData = (data) => {
   }
   calcSub = Math.round(calcSub * 100) / 100;
   calcGst = Math.round(calcGst * 100) / 100;
-  itemDiscSum = Math.round(itemDiscSum * 100) / 100;
 
   if (subTotal === 0 && items.length > 0) {
     subTotal = calcSub;
   }
-
   if (gstTotal === 0 && items.length > 0) {
     gstTotal = calcGst;
   }
-
-  // If totalDiscount is 0 but item-level discounts exist, patch totalDiscount with itemDiscSum
   if (totalDiscount === 0 && itemDiscSum > 0) {
     totalDiscount = itemDiscSum;
   }
 
-  // Auto-calculate roundOff if roundOff is 0 and totalAmount is given
-  const expectedBeforeRound = Math.round((subTotal - totalDiscount + gstTotal) * 100) / 100;
-  if (roundOff === 0 && totalAmount > 0 && Math.abs(totalAmount - expectedBeforeRound) < 5.0) {
-    roundOff = Math.round((totalAmount - expectedBeforeRound) * 100) / 100;
-  } else if (totalAmount === 0) {
+  if (totalAmount === 0 && subTotal > 0) {
     totalAmount = Math.round((subTotal - totalDiscount + gstTotal + roundOff) * 100) / 100;
   }
 
@@ -238,6 +232,8 @@ const sanitizeParsedData = (data) => {
     items,
     totals: {
       subTotal,
+      schDiscount,
+      billDiscount,
       totalDiscount,
       gstTotal,
       roundOff,
@@ -449,12 +445,14 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
            - "discountPercent": Numeric item level discount percentage if mentioned (e.g. 5.0), else 0.
            - "gstPercent": Numeric "Gst" column percentage (e.g. 5.00).
 
-        4. Invoice Summary & Totals:
-           - "subTotal": SUB TOTAL value or sum of item amounts.
-           - "totalDiscount": Extract "CD", "Cash Discount", "DISC", "Trade Discount", or bill discount sum from bottom table.
-           - "gstTotal": "GST PAYBLE" or "TOTAL GST" value from bottom table.
-           - "roundOff": Coin adjustment or R.Off if present, else 0.
-           - "totalAmount": "GRAND TOTAL" or net payable amount on the invoice (e.g. 41922.00).
+        4. Invoice Summary & Totals (Read bottom right calculation box):
+           - "subTotal": Numeric "SUB TOTAL" printed on bottom summary table (e.g. 703.00).
+           - "schDiscount": Numeric "SCH. DISCOUNT" or "Scheme Discount" printed on invoice if present (e.g. 33.33), else 0.
+           - "billDiscount": Numeric "BILL DISCOUNT" or "Trade Discount" printed on invoice if present (e.g. 0.00), else 0.
+           - "totalDiscount": Total discount or sum of discounts from bottom summary.
+           - "gstTotal": Numeric "GST PAYABLE" or "TOTAL GST" printed on invoice (e.g. 33.48).
+           - "roundOff": Numeric "ROUND OFF" adjustment printed on invoice (e.g. -0.15), else 0.
+           - "totalAmount": Numeric "GRAND TOTAL" net payable amount printed on invoice (e.g. 703.00).
 
         IMPORTANT: Ensure all numbers are clean numeric floats/ints (NO currency symbols, NO commas).
 
@@ -480,6 +478,8 @@ router.post('/upload', protect, upload.single('invoice'), async (req, res) => {
           ],
           "totals": {
             "subTotal": number,
+            "schDiscount": number,
+            "billDiscount": number,
             "totalDiscount": number,
             "gstTotal": number,
             "roundOff": number,

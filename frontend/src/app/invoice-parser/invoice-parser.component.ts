@@ -110,60 +110,47 @@ import { ApiService } from '../core/services/api.service';
               </div>
 
               <div class="totals-section mt-4">
-                <h4 class="border-b pb-2">Calculation Totals</h4>
+                <h4 class="border-b pb-2">Bill Summary (From AI Scan)</h4>
+                
                 <div class="totals-row mt-2">
-                  <span>Subtotal:</span>
+                  <span>Sub Total:</span>
                   <span>₹{{ parsedResult().totals.subTotal | number:'1.2-2' }}</span>
                 </div>
                 
-                <div class="totals-row align-items-center mt-1" style="display: flex; justify-content: space-between; align-items: center;">
-                  <span>Total Discount:</span>
-                  <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="color: #a855f7; font-weight: bold;">-₹</span>
-                    <input type="number" 
-                           [(ngModel)]="parsedResult().totals.totalDiscount" 
-                           (input)="recalculateTotals()"
-                           name="totalDisc"
-                           class="glass-input text-right" 
-                           style="width: 100px; height: 30px; padding: 2px 8px; font-size: 0.9rem; font-weight: 600;" 
-                           min="0"
-                           placeholder="0.00">
+                @if (parsedResult().totals.schDiscount && parsedResult().totals.schDiscount > 0) {
+                  <div class="totals-row mt-1">
+                    <span>Sch. Discount:</span>
+                    <span style="color: #a855f7; font-weight: 600;">-₹{{ parsedResult().totals.schDiscount | number:'1.2-2' }}</span>
                   </div>
-                </div>
+                }
+
+                @if (parsedResult().totals.billDiscount && parsedResult().totals.billDiscount > 0) {
+                  <div class="totals-row mt-1">
+                    <span>Bill Discount:</span>
+                    <span style="color: #a855f7; font-weight: 600;">-₹{{ parsedResult().totals.billDiscount | number:'1.2-2' }}</span>
+                  </div>
+                }
+
+                @if ((!parsedResult().totals.schDiscount && !parsedResult().totals.billDiscount) && parsedResult().totals.totalDiscount && parsedResult().totals.totalDiscount > 0) {
+                  <div class="totals-row mt-1">
+                    <span>Total Discount:</span>
+                    <span style="color: #a855f7; font-weight: 600;">-₹{{ parsedResult().totals.totalDiscount | number:'1.2-2' }}</span>
+                  </div>
+                }
 
                 <div class="totals-row mt-1">
-                  <span>GST Taxes:</span>
+                  <span>GST Payable:</span>
                   <span>₹{{ parsedResult().totals.gstTotal | number:'1.2-2' }}</span>
                 </div>
 
-                <div class="totals-row align-items-center mt-1" style="display: flex; justify-content: space-between; align-items: center;">
-                  <span>Round Off / Adj:</span>
-                  <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="color: #94a3b8; font-weight: 600;">₹</span>
-                    <input type="number" 
-                           [(ngModel)]="parsedResult().totals.roundOff" 
-                           (input)="recalculateTotals()"
-                           name="roundOff"
-                           class="glass-input text-right" 
-                           style="width: 100px; height: 30px; padding: 2px 8px; font-size: 0.9rem; font-weight: 600;" 
-                           step="0.01"
-                           placeholder="0.00">
-                  </div>
+                <div class="totals-row mt-1">
+                  <span>Round Off:</span>
+                  <span>₹{{ parsedResult().totals.roundOff | number:'1.2-2' }}</span>
                 </div>
                 
-                <div class="totals-row net-row mt-2 align-items-center" style="display: flex; justify-content: space-between; align-items: center;">
-                  <span>Grand Total (Bill):</span>
-                  <div style="display: flex; align-items: center; gap: 4px;">
-                    <span class="gradient-text" style="font-weight: 700; font-size: 1.1rem;">₹</span>
-                    <input type="number" 
-                           [(ngModel)]="parsedResult().totals.totalAmount" 
-                           (input)="onGrandTotalChanged()"
-                           name="grandTotal"
-                           class="glass-input text-right gradient-text" 
-                           style="width: 110px; height: 34px; padding: 2px 8px; font-size: 1.1rem; font-weight: 700; border: 1px solid var(--primary);" 
-                           step="0.01"
-                           placeholder="0.00">
-                  </div>
+                <div class="totals-row net-row mt-2">
+                  <span>Grand Total:</span>
+                  <span class="gradient-text" style="font-weight: 700; font-size: 1.2rem;">₹{{ parsedResult().totals.totalAmount | number:'1.2-2' }}</span>
                 </div>
               </div>
 
@@ -616,64 +603,18 @@ export class InvoiceParserComponent implements OnDestroy {
     return Math.round((sub + gstAmt) * 100) / 100;
   }
 
-  onGrandTotalChanged(): void {
-    const result = this.parsedResult();
-    if (!result || !result.items || !result.totals) return;
-
-    const subTotal = this.cleanNum(result.totals.subTotal, 0);
-    const totDisc = this.cleanNum(result.totals.totalDiscount, 0);
-    const gstTotal = this.cleanNum(result.totals.gstTotal, 0);
-    const targetGrandTotal = this.cleanNum(result.totals.totalAmount, 0);
-
-    const expectedBeforeRound = Math.round((subTotal - totDisc + gstTotal) * 100) / 100;
-    result.totals.roundOff = Math.round((targetGrandTotal - expectedBeforeRound) * 100) / 100;
-  }
-
   recalculateTotals(): void {
     const result = this.parsedResult();
     if (!result || !result.items || !result.totals) return;
 
-    let subTotal = 0;
-    let rawGstTotal = 0;
-
-    for (const item of result.items) {
-      const itemSub = this.getItemSubtotal(item);
-      const gstP = this.cleanNum(item.gstPercent, 0);
-      const itemGst = itemSub * (gstP / 100);
-
-      subTotal += itemSub;
-      rawGstTotal += itemGst;
-    }
-
-    subTotal = Math.round(subTotal * 100) / 100;
-    rawGstTotal = Math.round(rawGstTotal * 100) / 100;
-
-    let totDisc = this.cleanNum(result.totals.totalDiscount, 0);
-    let rOff = this.cleanNum(result.totals.roundOff, 0);
-
-    let effectiveGstTotal = rawGstTotal;
-    if (subTotal > 0 && totDisc > 0) {
-      const discRatio = totDisc / subTotal;
-      effectiveGstTotal = rawGstTotal * (1 - discRatio);
-    }
-    effectiveGstTotal = Math.round(effectiveGstTotal * 100) / 100;
-
-    // If totalAmount exists from bill OCR extraction, auto-calculate roundOff to balance equation
-    if (result.totals.totalAmount && rOff === 0) {
-      const targetTotal = this.cleanNum(result.totals.totalAmount, 0);
-      const expectedBeforeRound = Math.round((subTotal - totDisc + effectiveGstTotal) * 100) / 100;
-      if (Math.abs(targetTotal - expectedBeforeRound) < 10.0) {
-        rOff = Math.round((targetTotal - expectedBeforeRound) * 100) / 100;
-      }
-    }
-
-    const finalAmount = Math.round((subTotal - totDisc + effectiveGstTotal + rOff) * 100) / 100;
-
-    result.totals.subTotal = subTotal;
-    result.totals.totalDiscount = totDisc;
-    result.totals.gstTotal = effectiveGstTotal;
-    result.totals.roundOff = rOff;
-    result.totals.totalAmount = result.totals.totalAmount ? this.cleanNum(result.totals.totalAmount, finalAmount) : finalAmount;
+    // Preserve the exact calculations extracted by Gemini AI OCR model from the printed invoice
+    result.totals.subTotal = this.cleanNum(result.totals.subTotal, 0);
+    result.totals.schDiscount = this.cleanNum(result.totals.schDiscount, 0);
+    result.totals.billDiscount = this.cleanNum(result.totals.billDiscount, 0);
+    result.totals.totalDiscount = this.cleanNum(result.totals.totalDiscount, (result.totals.schDiscount + result.totals.billDiscount));
+    result.totals.gstTotal = this.cleanNum(result.totals.gstTotal, 0);
+    result.totals.roundOff = this.cleanNum(result.totals.roundOff, 0);
+    result.totals.totalAmount = this.cleanNum(result.totals.totalAmount, 0);
   }
 
   // --- Confirm Import ---

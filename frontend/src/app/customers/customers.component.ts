@@ -1,12 +1,13 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-customers',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="customers-container animate-fade-in">
       <div class="header-section">
@@ -48,6 +49,9 @@ import { ApiService } from '../core/services/api.service';
                        [(ngModel)]="searchQuery">
               </div>
               <span class="badge badge-info">{{ filteredCustomers.length }} Total</span>
+              <button class="btn btn-sm btn-primary-glass" (click)="isAddCustomerDrawerOpen.set(true)">
+                <i class="bi bi-person-plus-fill"></i> Add Customer
+              </button>
             </div>
           </div>
 
@@ -70,7 +74,7 @@ import { ApiService } from '../core/services/api.service';
                     <td>
                       <strong>{{ cust.name }}</strong>
                       @if (cust.loyaltyPoints > 0) {
-                        <span class="badge badge-warning ms-1" style="font-size: 0.7rem;">⭐ {{ cust.loyaltyPoints }} pts</span>
+                        <span class="badge badge-warning ms-1" style="font-size: 0.7rem;"><i class="bi bi-star-fill me-1"></i> {{ cust.loyaltyPoints }} pts</span>
                       }
                     </td>
                     <td><code>{{ cust.phone || 'N/A' }}</code></td>
@@ -128,32 +132,57 @@ import { ApiService } from '../core/services/api.service';
       </div>
 
       <!-- Customer Purchase History Modal / Drawer Overlay -->
-      @if (selectedCustomer()) {
-        <div class="modal-backdrop animate-fade-in" (click)="closeCustomerHistory()">
-          <div class="modal-panel glass-panel animate-slide-up" (click)="$event.stopPropagation()">
-            <!-- Modal Header -->
-            <div class="modal-header">
-              <div class="customer-info-header">
-                <div class="avatar-box">
-                  <i class="bi bi-person-bounding-box"></i>
-                </div>
-                <div>
-                  <h2>{{ selectedCustomer().name }}</h2>
-                  <p class="text-secondary" style="margin: 0; font-size: 0.88rem;">
-                    <i class="bi bi-telephone-fill"></i> {{ selectedCustomer().phone || 'No phone' }} | 
-                    <i class="bi bi-envelope"></i> {{ selectedCustomer().email || 'No email' }} | 
-                    <i class="bi bi-geo-alt-fill"></i> {{ selectedCustomer().address || 'No address' }}
-                  </p>
-                </div>
-              </div>
+      <!-- Add Customer Side Drawer -->
+      <app-side-drawer
+        [open]="isAddCustomerDrawerOpen()"
+        title="Add New Customer"
+        subtitle="Register patient account & phone number for billing"
+        width="480px"
+        primaryButtonText="Save Customer"
+        secondaryButtonText="Cancel"
+        (closed)="isAddCustomerDrawerOpen.set(false)"
+        (submitted)="handleAddCustomerFromDrawer()">
+        
+        <form (ngSubmit)="handleAddCustomerFromDrawer()">
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" [(ngModel)]="customerForm.name" name="name" class="glass-input" placeholder="e.g. John Doe" required>
+          </div>
 
-              <button class="btn-close-modal" (click)="closeCustomerHistory()">✕</button>
-            </div>
+          <div class="form-group mt-3">
+            <label class="form-label">Phone Number</label>
+            <input type="text" [(ngModel)]="customerForm.phone" name="phone" class="glass-input" placeholder="e.g. 9876543210">
+          </div>
 
-            <!-- Customer Summary Stats Bar -->
-            <div class="stats-bar mt-3">
-              <div class="stat-card glass-card">
-                <span class="stat-label">Total Visits / Bills</span>
+          <div class="form-group mt-3">
+            <label class="form-label">Email Address</label>
+            <input type="email" [(ngModel)]="customerForm.email" name="email" class="glass-input" placeholder="e.g. john@email.com">
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Postal Address</label>
+            <input type="text" [(ngModel)]="customerForm.address" name="address" class="glass-input" placeholder="City, Street, H.No...">
+          </div>
+        </form>
+      </app-side-drawer>
+
+      <!-- Customer Purchase History Side Drawer -->
+      <app-side-drawer
+        [open]="!!selectedCustomer()"
+        [title]="selectedCustomer()?.name || 'Customer Details'"
+        [subtitle]="'Phone: ' + (selectedCustomer()?.phone || 'N/A') + ' | Loyalty Points: ' + (selectedCustomer()?.loyaltyPoints || 0)"
+        width="650px"
+        [showFooter]="true"
+        secondaryButtonText="Close"
+        primaryButtonText="Done"
+        (closed)="closeCustomerHistory()"
+        (submitted)="closeCustomerHistory()">
+        
+        @if (selectedCustomer()) {
+          <!-- Customer Summary Stats Bar -->
+          <div class="stats-bar mb-3" style="display: flex; gap: 12px;">
+            <div class="stat-card glass-card" style="flex: 1; padding: 12px; background: var(--bg-muted); border-radius: 10px;">
+              <span class="stat-label" style="font-size: 0.75rem; color: var(--text-secondary); display: block;">Total Visits / Bills</span>
                 <span class="stat-val gradient-text">{{ customerHistory()?.totalSales || 0 }}</span>
               </div>
               <div class="stat-card glass-card">
@@ -162,7 +191,7 @@ import { ApiService } from '../core/services/api.service';
               </div>
               <div class="stat-card glass-card">
                 <span class="stat-label">Loyalty Points</span>
-                <span class="stat-val text-warning">⭐ {{ selectedCustomer().loyaltyPoints || 0 }}</span>
+                <span class="stat-val text-warning"><i class="bi bi-star-fill me-1"></i> {{ selectedCustomer().loyaltyPoints || 0 }}</span>
               </div>
             </div>
 
@@ -233,10 +262,10 @@ import { ApiService } from '../core/services/api.service';
                     <div class="bill-card glass-panel mb-3">
                       <div class="bill-card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
-                          <span class="bill-date" style="color: #94a3b8; font-size: 0.85rem;">
+                          <span class="bill-date" style="color: var(--text-muted); font-size: 0.85rem;">
                             <i class="bi bi-calendar3 text-primary"></i> {{ sale.saleDate | date:'fullDate' }} at {{ sale.saleDate | date:'shortTime' }}
                           </span>
-                          <h4 style="margin: 4px 0 0 0; color: #fff;">Invoice #{{ sale.invoiceNumber }}</h4>
+                          <h4 style="margin: 4px 0 0 0; color: var(--text-primary);">Invoice #{{ sale.invoiceNumber }}</h4>
                         </div>
                         <div class="text-end" style="text-align: right;">
                           <span class="badge badge-success mb-1">{{ sale.paymentMode }}</span>
@@ -285,9 +314,8 @@ import { ApiService } from '../core/services/api.service';
                 </div>
               }
             </div>
-          </div>
-        </div>
-      }
+          }
+        </app-side-drawer>
     </div>
   `,
   styles: [`
@@ -344,7 +372,7 @@ import { ApiService } from '../core/services/api.service';
       transition: background 0.15s;
     }
     .clickable-row:hover {
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--bg-hover);
     }
     .active-row {
       background: rgba(37, 99, 235, 0.15) !important;
@@ -359,7 +387,7 @@ import { ApiService } from '../core/services/api.service';
     .me-1 { margin-right: 4px; }
     .py-4 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
     .py-5 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
-    .text-success { color: #10b981 !important; font-weight: 700; }
+    .text-success { color: var(--success) !important; font-weight: 700; }
     .text-warning { color: #f59e0b !important; font-weight: 700; }
     
     .alert {
@@ -419,7 +447,7 @@ import { ApiService } from '../core/services/api.service';
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--bg-hover);
       padding-bottom: 16px;
     }
     .customer-info-header {
@@ -433,14 +461,14 @@ import { ApiService } from '../core/services/api.service';
       border-radius: 14px;
       background: rgba(37, 99, 235, 0.15);
       border: 1px solid rgba(37, 99, 235, 0.3);
-      color: #38bdf8;
+      color: var(--primary);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 1.5rem;
     }
     .btn-close-modal {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-muted);
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: #aaa;
       font-size: 1.2rem;
@@ -471,8 +499,8 @@ import { ApiService } from '../core/services/api.service';
       }
     }
     .stat-card {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--bg-hover);
+      border: 1px solid var(--bg-hover);
       border-radius: 12px;
       padding: 14px 16px;
       display: flex;
@@ -493,7 +521,7 @@ import { ApiService } from '../core/services/api.service';
     .modal-tabs {
       display: flex;
       gap: 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--bg-hover);
       padding-bottom: 10px;
     }
     .modal-tab-btn {
@@ -511,12 +539,12 @@ import { ApiService } from '../core/services/api.service';
       transition: all 0.2s ease;
     }
     .modal-tab-btn:hover {
-      background: rgba(255, 255, 255, 0.04);
-      color: #fff;
+      background: var(--bg-hover);
+      color: var(--text-primary);
     }
     .modal-tab-btn.active {
       background: var(--primary-gradient);
-      color: #ffffff;
+      color: var(--text-primary);
       border: none;
       box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
       font-weight: 700;
@@ -533,7 +561,7 @@ import { ApiService } from '../core/services/api.service';
       font-size: 0.85rem;
     }
     .nested-items-table th {
-      background: rgba(0, 0, 0, 0.3);
+      background: var(--bg-muted);
       padding: 8px 12px;
       text-align: left;
       color: var(--text-secondary);
@@ -543,13 +571,13 @@ import { ApiService } from '../core/services/api.service';
     }
     .nested-items-table td {
       padding: 8px 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid var(--bg-hover);
     }
     .bill-card {
       padding: 16px;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--bg-hover);
+      border: 1px solid var(--bg-hover);
       transition: all 0.2s ease;
     }
     .bill-card:hover {
@@ -570,6 +598,12 @@ export class CustomersComponent implements OnInit {
   customerHistory = signal<any | null>(null);
   loadingHistory = signal<boolean>(false);
   historyTab: 'medicines' | 'bills' = 'medicines';
+  isAddCustomerDrawerOpen = signal<boolean>(false);
+
+  handleAddCustomerFromDrawer(): void {
+    this.handleAddCustomer();
+    this.isAddCustomerDrawerOpen.set(false);
+  }
 
   customerForm = {
     name: '',
@@ -691,3 +725,5 @@ export class CustomersComponent implements OnInit {
     });
   }
 }
+
+

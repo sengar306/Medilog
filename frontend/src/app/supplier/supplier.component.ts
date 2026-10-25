@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-supplier',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="supplier-container animate-fade-in">
       <div class="header-section">
@@ -43,7 +44,7 @@ import { ApiService } from '../core/services/api.service';
       @if (isAdmin()) {
         <div class="glass-panel mb-3" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <label class="form-label mb-0" style="white-space: nowrap; color: #38bdf8; font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
+            <label class="form-label mb-0" style="white-space: nowrap; color: var(--primary); font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
             <select [(ngModel)]="selectedUserId" (change)="onChemistChange()" class="glass-input glass-select" style="width: 220px; padding: 6px 12px;">
               <option value="all">🏬 All Chemists / Stores</option>
               @for (user of chemistUsers(); track user._id) {
@@ -61,7 +62,12 @@ import { ApiService } from '../core/services/api.service';
           <div class="list-column glass-panel">
             <div class="list-header">
               <h3>Registered Wholesaler Distributors</h3>
-              <span class="badge badge-info">{{ suppliers().length }} Suppliers</span>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <span class="badge badge-info">{{ suppliers().length }} Suppliers</span>
+                <button class="btn btn-sm btn-primary-glass" (click)="isAddSupplierDrawerOpen.set(true)">
+                  <i class="bi bi-plus-lg"></i> Add Supplier
+                </button>
+              </div>
             </div>
 
             <div class="glass-table-container">
@@ -188,61 +194,107 @@ import { ApiService } from '../core/services/api.service';
         </div>
       }
 
-      <!-- Invoice Items Details Modal -->
-      @if (showDetailsModal() && selectedPurchase()) {
-        <div class="glass-modal-backdrop animate-fade-in">
-          <div class="glass-panel glass-modal">
-            <div class="modal-header">
-              <h3>Invoice Items Details ({{ selectedPurchase().purchase.invoiceNumber }})</h3>
-              <button (click)="showDetailsModal.set(false)" class="btn btn-glass btn-circle"><i class="bi bi-x"></i></button>
+      <!-- Add Supplier Side Drawer -->
+      <app-side-drawer
+        [open]="isAddSupplierDrawerOpen()"
+        title="Add New Supplier"
+        subtitle="Register a new wholesaler or distributor agency"
+        width="520px"
+        primaryButtonText="Save Supplier"
+        secondaryButtonText="Cancel"
+        (closed)="isAddSupplierDrawerOpen.set(false)"
+        (submitted)="handleAddSupplierDrawer()">
+        
+        <form (ngSubmit)="handleAddSupplierDrawer()">
+          <div class="form-group">
+            <label class="form-label">Distributor / Agency Name *</label>
+            <input type="text" [(ngModel)]="supplierForm.name" name="name" class="glass-input" placeholder="e.g. Acme Pharma Inc" required>
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Contact Representative</label>
+            <input type="text" [(ngModel)]="supplierForm.contactPerson" name="contactPerson" class="glass-input" placeholder="e.g. John Doe">
+          </div>
+
+          <div class="row-flex mt-3">
+            <div class="form-group w-50">
+              <label class="form-label">Phone Number</label>
+              <input type="text" [(ngModel)]="supplierForm.phone" name="phone" class="glass-input" placeholder="9876543210">
             </div>
-            
-            <div class="modal-body mt-3">
-              <div class="info-row">
-                <p><strong>Supplier:</strong> {{ selectedPurchase().purchase.supplier?.name }}</p>
-                <p><strong>Date:</strong> {{ selectedPurchase().purchase.invoiceDate | date:'medium' }}</p>
-              </div>
-
-              <div class="glass-table-container mt-3">
-                <table class="glass-table">
-                  <thead>
-                    <tr>
-                      <th>Medicine Name</th>
-                      <th>Batch Number</th>
-                      <th>Expiry Date</th>
-                      <th>Quantity Purchased</th>
-                      <th>Purchase Rate</th>
-                      <th>MRP</th>
-                      <th>GST %</th>
-                      <th>Total Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (item of selectedPurchase().items; track item._id) {
-                      <tr>
-                        <td><strong>{{ item.medicine.name }}</strong></td>
-                        <td><code>{{ item.batchNumber }}</code></td>
-                        <td>{{ item.expiryDate | date:'shortDate' }}</td>
-                        <td>{{ item.quantity }}</td>
-                        <td>₹{{ item.purchaseRate | number:'1.2-2' }}</td>
-                        <td>₹{{ item.mrp | number:'1.2-2' }}</td>
-                        <td>{{ item.gstPercent }}%</td>
-                        <td><strong>₹{{ item.totalAmount | number:'1.2-2' }}</strong></td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="modal-totals mt-3">
-                <p>Subtotal: ₹{{ selectedPurchase().purchase.subTotal | number:'1.2-2' }}</p>
-                <p>Tax (GST): ₹{{ selectedPurchase().purchase.gstTotal | number:'1.2-2' }}</p>
-                <h4 style="color: var(--primary);">Net Amount Paid: ₹{{ selectedPurchase().purchase.totalAmount | number:'1.2-2' }}</h4>
-              </div>
+            <div class="form-group w-50">
+              <label class="form-label">GSTIN ID</label>
+              <input type="text" [(ngModel)]="supplierForm.gstNumber" name="gstNumber" class="glass-input" placeholder="GSTIN code">
             </div>
           </div>
-        </div>
-      }
+
+          <div class="form-group mt-3">
+            <label class="form-label">Email Address</label>
+            <input type="email" [(ngModel)]="supplierForm.email" name="email" class="glass-input" placeholder="billing@supplier.com">
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Warehouse Address</label>
+            <input type="text" [(ngModel)]="supplierForm.address" name="address" class="glass-input" placeholder="Factory office street...">
+          </div>
+        </form>
+      </app-side-drawer>
+
+      <!-- Invoice Items Details Drawer -->
+      <app-side-drawer
+        [open]="showDetailsModal() && !!selectedPurchase()"
+        [title]="'Invoice Items: ' + (selectedPurchase()?.purchase?.invoiceNumber || '')"
+        [subtitle]="'Purchased from ' + (selectedPurchase()?.purchase?.supplier?.name || 'Wholesaler')"
+        width="650px"
+        [showFooter]="true"
+        secondaryButtonText="Close"
+        primaryButtonText="Done"
+        (closed)="showDetailsModal.set(false)"
+        (submitted)="showDetailsModal.set(false)">
+        
+        @if (selectedPurchase()) {
+          <div class="info-row" style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+            <p><strong>Supplier:</strong> {{ selectedPurchase().purchase.supplier?.name }}</p>
+            <p><strong>Date:</strong> {{ selectedPurchase().purchase.invoiceDate | date:'medium' }}</p>
+          </div>
+
+          <div class="glass-table-container">
+            <table class="glass-table">
+              <thead>
+                <tr>
+                  <th>Medicine Name</th>
+                  <th>Batch Number</th>
+                  <th>Expiry Date</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>MRP</th>
+                  <th>GST %</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of selectedPurchase().items; track item._id) {
+                  <tr>
+                    <td><strong>{{ item.medicine.name }}</strong></td>
+                    <td><code>{{ item.batchNumber }}</code></td>
+                    <td>{{ item.expiryDate | date:'shortDate' }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>₹{{ item.purchaseRate | number:'1.2-2' }}</td>
+                    <td>₹{{ item.mrp | number:'1.2-2' }}</td>
+                    <td>{{ item.gstPercent }}%</td>
+                    <td><strong>₹{{ item.totalAmount | number:'1.2-2' }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modal-totals mt-4" style="text-align: right; background: var(--bg-muted); padding: 16px; border-radius: var(--radius-lg, 12px);">
+            <p style="margin: 0 0 4px 0;">Subtotal: ₹{{ selectedPurchase().purchase.subTotal | number:'1.2-2' }}</p>
+            <p style="margin: 0 0 8px 0;">Tax (GST): ₹{{ selectedPurchase().purchase.gstTotal | number:'1.2-2' }}</p>
+            <h4 style="color: var(--primary); margin: 0;">Net Amount Paid: ₹{{ selectedPurchase().purchase.totalAmount | number:'1.2-2' }}</h4>
+          </div>
+        }
+      </app-side-drawer>
     </div>
   `,
   styles: [`
@@ -393,9 +445,15 @@ export class SupplierComponent implements OnInit {
   successMessage = signal<string | null>(null);
   errorMessage = signal<string | null>(null);
 
-  // Modal State
+  // Modal & Drawer State
   showDetailsModal = signal(false);
+  isAddSupplierDrawerOpen = signal(false);
   selectedPurchase = signal<any | null>(null);
+
+  handleAddSupplierDrawer(): void {
+    this.handleAddSupplier();
+    this.isAddSupplierDrawerOpen.set(false);
+  }
 
   // Form Model
   supplierForm = {

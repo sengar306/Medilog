@@ -33,7 +33,7 @@ interface CartItem {
 
       <!-- Custom Success / Dispatch Alert -->
       @if (toastMessage()) {
-        <div class="alert alert-success mt-2 flex items-center justify-between" style="background: rgba(5, 46, 22, 0.95); border: 1px solid rgba(34, 197, 94, 0.8); color: #fff; padding: 14px 18px; border-radius: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <div class="alert alert-success mt-2" style="padding: 14px 18px; border-radius: 10px;">
           <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
             <span>{{ toastMessage() }}</span>
             @if (activeWaLink()) {
@@ -183,7 +183,7 @@ interface CartItem {
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label class="form-label">Phone Number (Customer WhatsApp)</label>
                 @if (isNewCustomerNotice()) {
-                  <small style="color: #38bdf8; font-size: 0.72rem; font-weight: 600;">✨ New Patient Account will be auto-created</small>
+                  <small style="color: var(--primary); font-size: 0.72rem; font-weight: 600;">✨ New Patient Account will be auto-created</small>
                 }
               </div>
               <input type="text" [(ngModel)]="customerPhone" (input)="onCustomerPhoneChange()" name="custPhone" class="glass-input" placeholder="e.g. 9876543210">
@@ -198,7 +198,7 @@ interface CartItem {
             <h4 class="section-title mt-4">Doctor Prescription (Rx) Photo</h4>
             <div class="form-group rx-upload-group mt-2">
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button type="button" (click)="startCamera()" class="btn btn-glass btn-sm" style="display: flex; align-items: center; gap: 6px; color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">
+                <button type="button" (click)="startCamera()" class="btn btn-glass btn-sm" style="display: flex; align-items: center; gap: 6px; color: var(--primary); border-color: rgba(56, 189, 248, 0.3);">
                   <i class="bi bi-camera-fill"></i> 📸 Snap Rx via Camera
                 </button>
 
@@ -226,7 +226,7 @@ interface CartItem {
 
               <!-- Prescription Thumbnail Preview -->
               @if (prescriptionImage()) {
-                <div class="rx-preview-box mt-2" style="position: relative; display: inline-block; background: rgba(0,0,0,0.4); border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 10px; padding: 8px;">
+                <div class="rx-preview-box mt-2" style="position: relative; display: inline-block; background: rgba(0,0,0,0.4); border: 1px solid rgba(15, 118, 110, 0.5); border-radius: 10px; padding: 8px;">
                   <img [src]="prescriptionImage()" style="max-height: 110px; border-radius: 6px; display: block;" alt="Rx Photo">
                   <div style="display: flex; gap: 8px; margin-top: 6px; align-items: center; justify-content: space-between;">
                     <span class="badge badge-purple" style="font-size: 0.72rem;">✓ Rx Photo Attached</span>
@@ -261,13 +261,13 @@ interface CartItem {
                 <div class="d-flex align-items-center justify-content-between mb-1">
                   <label class="form-label inline-label mb-0">Discount (%)</label>
                   @if (discountAmount > 0) {
-                    <span class="discount-equivalent-badge" style="background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); color: #c084fc; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.82rem;">-₹{{ discountAmount | number:'1.2-2' }}</span>
+                    <span class="discount-equivalent-badge" style="background: rgba(15, 118, 110, 0.2); border: 1px solid rgba(15, 118, 110, 0.4); color: var(--primary); padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.82rem;">-₹{{ discountAmount | number:'1.2-2' }}</span>
                   }
                 </div>
                 <div class="discount-input-box">
                   <div style="position: relative; display: flex; align-items: center;">
                     <input type="number" [(ngModel)]="discountValue" name="discount" class="glass-input discount-input text-right" min="0" max="100" placeholder="0" style="padding-right: 28px;">
-                    <span style="position: absolute; right: 10px; color: #a855f7; font-weight: bold; pointer-events: none;">%</span>
+                    <span style="position: absolute; right: 10px; color: var(--primary); font-weight: bold; pointer-events: none;">%</span>
                   </div>
                 </div>
               </div>
@@ -342,9 +342,9 @@ interface CartItem {
             </div>
 
             @if (receiptData().sale.prescriptionUrl) {
-              <div class="rx-attached-receipt mt-3 p-2 text-center" style="background: rgba(168, 85, 247, 0.1); border: 1px dashed rgba(168, 85, 247, 0.4); border-radius: 10px;">
-                <p style="margin: 0; font-size: 0.85rem; color: #c084fc; font-weight: 600;">📋 Doctor Prescription Photo Attached</p>
-                <a [href]="apiService.baseUrl + receiptData().sale.prescriptionUrl" target="_blank" class="btn btn-glass btn-sm mt-2" style="color: #c084fc; font-size: 0.8rem; text-decoration: none;">
+              <div class="rx-attached-receipt mt-3 p-2 text-center" style="background: rgba(15, 118, 110, 0.1); border: 1px dashed rgba(15, 118, 110, 0.4); border-radius: 10px;">
+                <p style="margin: 0; font-size: 0.85rem; color: var(--primary); font-weight: 600;">📋 Doctor Prescription Photo Attached</p>
+                <a [href]="apiService.baseUrl + receiptData().sale.prescriptionUrl" target="_blank" class="btn btn-glass btn-sm mt-2" style="color: var(--primary); font-size: 0.8rem; text-decoration: none;">
                   <i class="bi bi-eye"></i> Open Prescription Photo
                 </a>
               </div>
@@ -436,7 +436,7 @@ interface CartItem {
                         <i class="bi bi-receipt"></i> View
                       </button>
                       @if (sale.prescriptionUrl) {
-                        <a [href]="apiService.baseUrl + sale.prescriptionUrl" target="_blank" class="btn btn-glass btn-sm" style="color: #c084fc; text-decoration: none;" title="View Doctor Prescription Photo">
+                        <a [href]="apiService.baseUrl + sale.prescriptionUrl" target="_blank" class="btn btn-glass btn-sm" style="color: var(--primary); text-decoration: none;" title="View Doctor Prescription Photo">
                           <i class="bi bi-image"></i> Rx
                         </a>
                       }
@@ -493,19 +493,19 @@ interface CartItem {
       transition: all 0.2s ease;
     }
     .tab-btn:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-muted);
       color: var(--text-primary);
     }
     .tab-btn.active {
-      background: rgba(130, 87, 229, 0.2);
-      border-color: rgba(130, 87, 229, 0.4);
-      color: #fff;
-      box-shadow: 0 4px 14px rgba(130, 87, 229, 0.25);
+      background: rgba(15, 118, 110, 0.1);
+      border-color: rgba(15, 118, 110, 0.25);
+      color: var(--primary);
+      box-shadow: 0 2px 8px rgba(15, 118, 110, 0.1);
     }
     .badge-purple {
-      background: rgba(168, 85, 247, 0.15);
-      border: 1px solid rgba(168, 85, 247, 0.3);
-      color: #c084fc;
+      background: rgba(15, 118, 110, 0.15);
+      border: 1px solid rgba(15, 118, 110, 0.3);
+      color: var(--primary);
     }
     .ms-1 { margin-left: 4px; }
     .me-1 { margin-right: 4px; }
@@ -613,7 +613,7 @@ interface CartItem {
     }
     .dropdown-option-item:hover {
       background: rgba(59, 130, 246, 0.2);
-      color: #ffffff;
+      color: var(--text-primary);
     }
     .dropdown-option-item.selected {
       background: rgba(59, 130, 246, 0.3);
@@ -635,7 +635,7 @@ interface CartItem {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-muted);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 6px;
       padding: 2px 6px;
@@ -650,7 +650,7 @@ interface CartItem {
       transition: color 0.2s;
     }
     .btn-qty-arrow:hover {
-      color: #fff;
+      color: var(--text-primary);
     }
     .qty-value {
       font-weight: 600;
@@ -662,7 +662,7 @@ interface CartItem {
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--bg-hover);
       padding-bottom: 6px;
     }
     .discount-group {
@@ -671,7 +671,7 @@ interface CartItem {
       justify-content: space-between;
     }
     .discount-toggle {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--bg-hover);
       border-radius: 6px;
       padding: 2px;
       display: flex;
@@ -689,7 +689,7 @@ interface CartItem {
     }
     .btn-toggle.active {
       background: var(--primary-color, #6366f1);
-      color: #ffffff;
+      color: var(--text-primary);
       box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .discount-input-box {
@@ -702,15 +702,15 @@ interface CartItem {
     .discount-equivalent-badge {
       font-size: 0.8rem;
       font-weight: 600;
-      color: #38bdf8;
+      color: var(--primary);
       background: rgba(56, 189, 248, 0.15);
       border: 1px solid rgba(56, 189, 248, 0.3);
       padding: 2px 6px;
       border-radius: 6px;
     }
     .totals-box {
-      background: rgba(0, 0, 0, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: var(--bg-muted);
+      border: 1px solid var(--bg-muted);
       border-radius: 12px;
       padding: 14px;
     }
@@ -724,7 +724,7 @@ interface CartItem {
     .final-row {
       font-size: 1.2rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
       border-top: 1px dashed rgba(255, 255, 255, 0.15);
       padding-top: 10px;
     }
@@ -762,7 +762,7 @@ interface CartItem {
     }
     .receipt-table th, .receipt-table td {
       padding: 8px 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--bg-hover);
       font-size: 0.88rem;
     }
     .receipt-totals {
@@ -772,7 +772,7 @@ interface CartItem {
     }
     .receipt-footer {
       text-align: center;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid var(--bg-hover);
       padding-top: 16px;
     }
     .footer-buttons {
@@ -794,8 +794,8 @@ interface CartItem {
         max-width: 100% !important;
       }
       .no-print { display: none !important; }
-      .logo-icon { color: #8257e5 !important; }
-      .receipt-table th { background-color: #8257e5 !important; color: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .logo-icon { color: var(--primary) !important; }
+      .receipt-table th { background-color: var(--primary) !important; color: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .receipt-table td { border-bottom: 1px solid #ddd !important; color: #000000 !important; }
     }
   `]

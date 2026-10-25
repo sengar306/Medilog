@@ -2,11 +2,12 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="users-container animate-fade-in">
       <div class="page-header">
@@ -92,99 +93,87 @@ import { ApiService } from '../core/services/api.service';
         }
       </div>
 
-      <!-- CREATE / EDIT MODAL -->
-      @if (showModal()) {
-        <div class="modal-backdrop animate-fade-in" (click)="closeModal()">
-          <div class="modal-card glass-panel" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3>{{ isEditMode() ? '✏️ Edit User Details' : '👤 Add New System User' }}</h3>
-              <button class="btn-close-modal" (click)="closeModal()">✕</button>
-            </div>
-            <form (submit)="saveUser()">
-              <div class="modal-body">
-                @if (errorMsg()) {
-                  <div class="alert alert-danger">{{ errorMsg() }}</div>
-                }
+      <!-- CREATE / EDIT USER DRAWER -->
+      <app-side-drawer
+        [open]="showModal()"
+        [title]="isEditMode() ? 'Edit User Details' : 'Add New System User'"
+        [subtitle]="isEditMode() ? 'Update account settings and permissions' : 'Create a new user or administrator account'"
+        width="500px"
+        [primaryButtonText]="isEditMode() ? 'Save Changes' : 'Create User Account'"
+        secondaryButtonText="Cancel"
+        (closed)="closeModal()"
+        (submitted)="saveUser()">
+        
+        <form id="userFormId" (submit)="saveUser()">
+          @if (errorMsg()) {
+            <div class="alert alert-danger mb-3">{{ errorMsg() }}</div>
+          }
 
-                <div class="form-group">
-                  <label class="form-label">Username *</label>
-                  <input type="text" [(ngModel)]="userForm.username" name="username" class="glass-input" required [disabled]="isEditMode()">
-                </div>
-
-                <div class="form-group mt-3">
-                  <label class="form-label">Chemist / Store Name *</label>
-                  <input type="text" [(ngModel)]="userForm.chemistName" name="chemistName" class="glass-input" placeholder="e.g. City Care Pharmacy" required>
-                </div>
-
-                <div class="form-group mt-3">
-                  <label class="form-label">Email Address *</label>
-                  <input type="email" [(ngModel)]="userForm.email" name="email" class="glass-input" required>
-                </div>
-
-                @if (!isEditMode()) {
-                  <div class="form-group mt-3">
-                    <label class="form-label">Temporary Password *</label>
-                    <input type="password" [(ngModel)]="userForm.password" name="password" class="glass-input" required minlength="4">
-                  </div>
-                }
-
-                <div class="form-group mt-3">
-                  <label class="form-label">Account Role *</label>
-                  <select [(ngModel)]="userForm.roleName" name="roleName" class="glass-input glass-select" required>
-                    <option value="User">User (Standard Access)</option>
-                    <option value="Admin">Admin (Full Administrative Access)</option>
-                  </select>
-                </div>
-
-                @if (isEditMode()) {
-                  <div class="form-group mt-3">
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" [(ngModel)]="userForm.isActive" name="isActive" id="modal-status">
-                      <label class="form-check-label" for="modal-status">Account Active Status</label>
-                    </div>
-                  </div>
-                }
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary-glass" (click)="closeModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary-glass">
-                  {{ isEditMode() ? 'Save Changes' : 'Create User Account' }}
-                </button>
-              </div>
-            </form>
+          <div class="form-group">
+            <label class="form-label">Username *</label>
+            <input type="text" [(ngModel)]="userForm.username" name="username" class="glass-input" required [disabled]="isEditMode()">
           </div>
-        </div>
-      }
 
-      <!-- RESET PASSWORD MODAL -->
-      @if (showPasswordModal()) {
-        <div class="modal-backdrop animate-fade-in" (click)="closePasswordModal()">
-          <div class="modal-card glass-panel" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3>🔑 Reset User Password</h3>
-              <button class="btn-close-modal" (click)="closePasswordModal()">✕</button>
-            </div>
-            <form (submit)="resetPasswordSubmit()">
-              <div class="modal-body">
-                @if (errorMsg()) {
-                  <div class="alert alert-danger">{{ errorMsg() }}</div>
-                }
-                <p style="font-size: 13px; color: #ddd;">
-                  You are resetting the password for user: <strong>{{ selectedUser().username }}</strong>.
-                </p>
-                <div class="form-group mt-3">
-                  <label class="form-label">New Password *</label>
-                  <input type="password" [(ngModel)]="newPassword" name="newPassword" class="glass-input" required minlength="4" placeholder="Enter new password...">
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary-glass" (click)="closePasswordModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary-glass">Reset Password</button>
-              </div>
-            </form>
+          <div class="form-group mt-3">
+            <label class="form-label">Chemist / Store Name *</label>
+            <input type="text" [(ngModel)]="userForm.chemistName" name="chemistName" class="glass-input" placeholder="e.g. City Care Pharmacy" required>
           </div>
-        </div>
-      }
+
+          <div class="form-group mt-3">
+            <label class="form-label">Email Address *</label>
+            <input type="email" [(ngModel)]="userForm.email" name="email" class="glass-input" required>
+          </div>
+
+          @if (!isEditMode()) {
+            <div class="form-group mt-3">
+              <label class="form-label">Temporary Password *</label>
+              <input type="password" [(ngModel)]="userForm.password" name="password" class="glass-input" required minlength="4">
+            </div>
+          }
+
+          <div class="form-group mt-3">
+            <label class="form-label">Account Role *</label>
+            <select [(ngModel)]="userForm.roleName" name="roleName" class="glass-input glass-select" required>
+              <option value="User">User (Standard Access)</option>
+              <option value="Admin">Admin (Full Administrative Access)</option>
+            </select>
+          </div>
+
+          @if (isEditMode()) {
+            <div class="form-group mt-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" [(ngModel)]="userForm.isActive" name="isActive" id="modal-status">
+                <label class="form-check-label" for="modal-status">Account Active Status</label>
+              </div>
+            </div>
+          }
+        </form>
+      </app-side-drawer>
+
+      <!-- RESET PASSWORD DRAWER -->
+      <app-side-drawer
+        [open]="showPasswordModal()"
+        title="Reset User Password"
+        subtitle="Set a new password for system user"
+        width="450px"
+        primaryButtonText="Reset Password"
+        secondaryButtonText="Cancel"
+        (closed)="closePasswordModal()"
+        (submitted)="resetPasswordSubmit()">
+        
+        <form (submit)="resetPasswordSubmit()">
+          @if (errorMsg()) {
+            <div class="alert alert-danger mb-3">{{ errorMsg() }}</div>
+          }
+          <p style="font-size: 0.88rem; color: var(--text-secondary);">
+            You are resetting the password for user: <strong style="color: var(--text-primary);">{{ selectedUser().username }}</strong>.
+          </p>
+          <div class="form-group mt-3">
+            <label class="form-label">New Password *</label>
+            <input type="password" [(ngModel)]="newPassword" name="newPassword" class="glass-input" required minlength="4" placeholder="Enter new password...">
+          </div>
+        </form>
+      </app-side-drawer>
 
       <!-- TOAST MESSAGES -->
       @if (toastMessage()) {
@@ -246,7 +235,7 @@ import { ApiService } from '../core/services/api.service';
     }
     .avatar-sm {
       font-size: 1.5rem;
-      color: #38bdf8;
+      color: var(--primary);
       display: flex;
       align-items: center;
     }
@@ -278,12 +267,12 @@ import { ApiService } from '../core/services/api.service';
       gap: 8px;
     }
     .btn-action {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-muted);
       border: 1px solid rgba(255, 255, 255, 0.1);
       width: 32px;
       height: 32px;
       border-radius: 8px;
-      color: #fff;
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -295,8 +284,8 @@ import { ApiService } from '../core/services/api.service';
       transform: translateY(-2px);
     }
     .btn-action.edit:hover {
-      color: #38bdf8;
-      border-color: #38bdf8;
+      color: var(--primary);
+      border-color: var(--primary);
       box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
     }
     .btn-action.password:hover {
@@ -321,8 +310,8 @@ import { ApiService } from '../core/services/api.service';
       cursor: pointer;
     }
     .form-switch .form-check-input:checked {
-      background-color: #10b981;
-      border-color: #10b981;
+      background-color: var(--success);
+      border-color: var(--success);
       background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
     }
 
@@ -360,12 +349,12 @@ import { ApiService } from '../core/services/api.service';
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--bg-hover);
     }
     .modal-header h3 {
       font-size: 1.1rem;
       margin: 0;
-      color: #fff;
+      color: var(--text-primary);
     }
     .btn-close-modal {
       background: none;
@@ -375,7 +364,7 @@ import { ApiService } from '../core/services/api.service';
       font-size: 16px;
     }
     .btn-close-modal:hover {
-      color: #fff;
+      color: var(--text-primary);
     }
     .modal-body {
       padding: 24px;
@@ -385,7 +374,7 @@ import { ApiService } from '../core/services/api.service';
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid var(--bg-hover);
       background: rgba(0, 0, 0, 0.15);
     }
     .toast-notification {

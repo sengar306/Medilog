@@ -40,7 +40,7 @@ import { ApiService } from '../core/services/api.service';
                   <img [src]="logoPreviewUrl || getFullLogoUrl(logoUrl)" alt="Chemist Logo" class="logo-preview-img">
                 } @else {
                   <div class="logo-placeholder">
-                    <i class="bi bi-image" style="font-size: 2rem; color: #8257e5;"></i>
+                    <i class="bi bi-image" style="font-size: 2rem; color: var(--primary);"></i>
                     <p style="margin-top: 6px; font-size: 0.8rem; color: var(--text-muted);">No logo uploaded yet</p>
                   </div>
                 }
@@ -245,12 +245,12 @@ import { ApiService } from '../core/services/api.service';
     .logo-preview-box {
       width: 120px;
       height: 120px;
-      border: 2px dashed rgba(130, 87, 229, 0.4);
+      border: 2px dashed rgba(15, 118, 110, 0.4);
       border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(130, 87, 229, 0.05);
+      background: rgba(15, 118, 110, 0.05);
       overflow: hidden;
     }
     .logo-preview-img {
@@ -267,7 +267,7 @@ import { ApiService } from '../core/services/api.service';
       gap: 12px;
     }
     .btn-file-select {
-      background: rgba(130, 87, 229, 0.15);
+      background: rgba(15, 118, 110, 0.15);
       border: 1px solid var(--primary);
       color: var(--primary-light);
       padding: 8px 16px;
@@ -342,7 +342,7 @@ import { ApiService } from '../core/services/api.service';
       width: 32px;
       height: 32px;
       border: 3px solid rgba(130,87,229,0.15);
-      border-top-color: #8257e5;
+      border-top-color: var(--primary);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }

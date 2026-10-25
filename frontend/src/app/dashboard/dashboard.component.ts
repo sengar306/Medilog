@@ -9,46 +9,57 @@ import { ApiService } from '../core/services/api.service';
   imports: [CommonModule, RouterLink],
   template: `
     <div class="dashboard-container animate-fade-in">
-      <div class="dashboard-welcome">
-        <h1>Welcome Back, <span class="gradient-text">{{ username }}</span></h1>
-        <p>Here is your pharmacy's overview status for today.</p>
+      <!-- Welcome Header -->
+      <div class="welcome-section">
+        <div class="welcome-text">
+          <h1>Good {{ getGreeting() }}, <span class="text-primary-color">{{ username }}</span></h1>
+          <p>Here's what's happening with your pharmacy today.</p>
+        </div>
+        <div class="welcome-actions">
+          <button class="btn btn-primary" [routerLink]="['/billing']">
+            <i class="bi bi-plus-lg"></i> New Bill
+          </button>
+          <button class="btn btn-glass" [routerLink]="['/inventory']">
+            <i class="bi bi-archive"></i> Inventory
+          </button>
+        </div>
       </div>
 
       <!-- KPI Grid -->
       <div class="kpi-grid">
         <div class="glass-panel kpi-card">
-          <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
-            <i class="bi bi-currency-dollar"></i>
+          <div class="kpi-icon kpi-icon-success">
+            <i class="bi bi-currency-rupee"></i>
           </div>
           <div class="kpi-info">
             <h3>Today's Sales</h3>
-            <p>₹{{ metrics().summary.todaySales | number:'1.2-2' }}</p>
+            <p>₹{{ metrics().summary.todaySales | number:'1.0-0' }}</p>
           </div>
         </div>
 
         <div class="glass-panel kpi-card">
-          <div class="kpi-icon" style="background: rgba(130, 87, 229, 0.1); color: var(--primary);">
+          <div class="kpi-icon kpi-icon-primary">
             <i class="bi bi-wallet2"></i>
           </div>
           <div class="kpi-info">
-            <h3>Total Sales</h3>
-            <p>₹{{ metrics().summary.totalSales | number:'1.2-2' }}</p>
+            <h3>Total Revenue</h3>
+            <p>₹{{ metrics().summary.totalSales | number:'1.0-0' }}</p>
           </div>
         </div>
 
         <div class="glass-panel kpi-card">
-          <div class="kpi-icon" style="background: rgba(14, 165, 233, 0.1); color: var(--info);">
-            <i class="bi bi-cart4"></i>
+          <div class="kpi-icon kpi-icon-info">
+            <i class="bi bi-cart-check"></i>
           </div>
           <div class="kpi-info">
             <h3>Procurements</h3>
-            <p>₹{{ metrics().summary.totalPurchases | number:'1.2-2' }}</p>
+            <p>₹{{ metrics().summary.totalPurchases | number:'1.0-0' }}</p>
           </div>
         </div>
 
         <div class="glass-panel kpi-card" [routerLink]="['/inventory']" style="cursor: pointer;">
-          <div class="kpi-icon" [style.background]="metrics().summary.lowStockCount > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)'" [style.color]="metrics().summary.lowStockCount > 0 ? 'var(--danger)' : 'var(--text-secondary)'">
-            <i class="bi bi-exclamation-triangle-fill"></i>
+          <div class="kpi-icon" [class.kpi-icon-danger]="metrics().summary.lowStockCount > 0" [class.kpi-icon-muted]="metrics().summary.lowStockCount === 0">
+            <i class="bi bi-exclamation-triangle"></i>
           </div>
           <div class="kpi-info">
             <h3>Low Stock Items</h3>
@@ -56,12 +67,12 @@ import { ApiService } from '../core/services/api.service';
           </div>
         </div>
 
-        <div class="glass-panel kpi-card" [routerLink]="['/inventory']" style="cursor: pointer;">
-          <div class="kpi-icon" [style.background]="metrics().summary.nearExpiryCount > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255, 255, 255, 0.05)'" [style.color]="metrics().summary.nearExpiryCount > 0 ? 'var(--warning)' : 'var(--text-secondary)'">
+        <div class="glass-panel kpi-card" [routerLink]="['/expiry-alerts']" style="cursor: pointer;">
+          <div class="kpi-icon" [class.kpi-icon-warning]="metrics().summary.nearExpiryCount > 0" [class.kpi-icon-muted]="metrics().summary.nearExpiryCount === 0">
             <i class="bi bi-calendar-event"></i>
           </div>
           <div class="kpi-info">
-            <h3>Near Expiry Batches</h3>
+            <h3>Expiring Soon</h3>
             <p [class.text-warning]="metrics().summary.nearExpiryCount > 0">{{ metrics().summary.nearExpiryCount }}</p>
           </div>
         </div>
@@ -72,63 +83,65 @@ import { ApiService } from '../core/services/api.service';
         <!-- SVG Interactive Analytics Graph -->
         <div class="glass-panel graph-panel">
           <div class="panel-header">
-            <h3>Revenue & Procurement Trends</h3>
-            <span class="badge badge-info">Past 6 Months</span>
+            <div>
+              <h3>Revenue & Procurement Trends</h3>
+              <p class="panel-subtitle">Performance over the past 6 months</p>
+            </div>
           </div>
           <div class="chart-container">
             <!-- Custom Dynamic SVG Chart -->
             <svg viewBox="0 0 600 240" class="svg-chart">
               <defs>
                 <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#8257e5" stop-opacity="0.4"/>
-                  <stop offset="100%" stop-color="#8257e5" stop-opacity="0.0"/>
+                  <stop offset="0%" stop-color="#0F766E" stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color="#0F766E" stop-opacity="0.0"/>
                 </linearGradient>
                 <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.4"/>
-                  <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.0"/>
+                  <stop offset="0%" stop-color="#2563EB" stop-opacity="0.15"/>
+                  <stop offset="100%" stop-color="#2563EB" stop-opacity="0.0"/>
                 </linearGradient>
               </defs>
-              
+
               <!-- Horizontal Grid Lines -->
-              <line x1="40" y1="30" x2="570" y2="30" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-              <line x1="40" y1="80" x2="570" y2="80" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-              <line x1="40" y1="130" x2="570" y2="130" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-              <line x1="40" y1="180" x2="570" y2="180" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-              <line x1="40" y1="200" x2="570" y2="200" stroke="rgba(255,255,255,0.1)" stroke-width="1" />
+              <line x1="40" y1="30" x2="570" y2="30" stroke="#E2E8F0" stroke-width="1" />
+              <line x1="40" y1="80" x2="570" y2="80" stroke="#E2E8F0" stroke-width="1" />
+              <line x1="40" y1="130" x2="570" y2="130" stroke="#E2E8F0" stroke-width="1" />
+              <line x1="40" y1="180" x2="570" y2="180" stroke="#E2E8F0" stroke-width="1" />
+              <line x1="40" y1="200" x2="570" y2="200" stroke="#CBD5E1" stroke-width="1" />
 
               <!-- Graph Paths (Sales) -->
               <path [attr.d]="getSalesPath()" fill="url(#salesGrad)" />
-              <path [attr.d]="getSalesLine()" fill="none" stroke="#8257e5" stroke-width="3" filter="drop-shadow(0px 4px 8px rgba(130, 87, 229, 0.4))" />
+              <path [attr.d]="getSalesLine()" fill="none" stroke="#0F766E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
 
               <!-- Graph Paths (Purchases) -->
               <path [attr.d]="getPurchasesPath()" fill="url(#purchaseGrad)" />
-              <path [attr.d]="getPurchasesLine()" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-dasharray="4 2" />
+              <path [attr.d]="getPurchasesLine()" fill="none" stroke="#2563EB" stroke-width="2" stroke-dasharray="5 3" stroke-linecap="round" />
 
               <!-- X-Axis Labels -->
               @for (label of chartLabels(); track $index) {
-                <text [attr.x]="40 + $index * 106" y="222" fill="var(--text-secondary)" font-size="10" text-anchor="middle">
+                <text [attr.x]="40 + $index * 106" y="222" fill="#64748B" font-size="10" text-anchor="middle" font-family="Inter, sans-serif">
                   {{ label }}
                 </text>
               }
 
               <!-- Y-Axis Labels -->
-              <text x="35" y="34" fill="var(--text-secondary)" font-size="9" text-anchor="end">₹10K+</text>
-              <text x="35" y="84" fill="var(--text-secondary)" font-size="9" text-anchor="end">₹5K</text>
-              <text x="35" y="134" fill="var(--text-secondary)" font-size="9" text-anchor="end">₹2.5K</text>
-              <text x="35" y="184" fill="var(--text-secondary)" font-size="9" text-anchor="end">₹1K</text>
-              <text x="35" y="204" fill="var(--text-secondary)" font-size="9" text-anchor="end">₹0</text>
+              <text x="35" y="34" fill="#94A3B8" font-size="9" text-anchor="end" font-family="Inter, sans-serif">₹10K+</text>
+              <text x="35" y="84" fill="#94A3B8" font-size="9" text-anchor="end" font-family="Inter, sans-serif">₹5K</text>
+              <text x="35" y="134" fill="#94A3B8" font-size="9" text-anchor="end" font-family="Inter, sans-serif">₹2.5K</text>
+              <text x="35" y="184" fill="#94A3B8" font-size="9" text-anchor="end" font-family="Inter, sans-serif">₹1K</text>
+              <text x="35" y="204" fill="#94A3B8" font-size="9" text-anchor="end" font-family="Inter, sans-serif">₹0</text>
             </svg>
           </div>
           <div class="chart-legend">
-            <div class="legend-item"><span class="legend-color" style="background: #8257e5;"></span> Sales (Revenue)</div>
-            <div class="legend-item"><span class="legend-color" style="background: #0ea5e9; border: 1px dashed #fff;"></span> Purchases (Procurement)</div>
+            <div class="legend-item"><span class="legend-color" style="background: var(--primary);"></span> Sales Revenue</div>
+            <div class="legend-item"><span class="legend-color legend-dashed" style="background: var(--secondary);"></span> Procurement</div>
           </div>
         </div>
 
         <!-- Recent Activities & Audit Trail -->
         <div class="glass-panel activity-panel">
-          <h3>Recent Operations Ledger</h3>
-          
+          <h3>Recent Activity</h3>
+
           <div class="activity-list">
             @for (log of metrics().recentActivity; track log._id) {
               <div class="activity-item">
@@ -140,15 +153,15 @@ import { ApiService } from '../core/services/api.service';
                   <span class="activity-time">
                     <i class="bi bi-clock"></i> {{ log.createdAt | date:'MMM d, h:mm a' }}
                     @if (log.user) {
-                      by <strong style="color: var(--primary);">{{ log.user.username }}</strong>
+                      Â· <strong>{{ log.user.username }}</strong>
                     }
                   </span>
                 </div>
               </div>
             } @empty {
-              <div class="text-center py-4 text-muted">
-                <i class="bi bi-inbox fs-2"></i>
-                <p>No recent actions logged.</p>
+              <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No recent activity logged.</p>
               </div>
             }
           </div>
@@ -158,16 +171,21 @@ import { ApiService } from '../core/services/api.service';
       <!-- Recent Sales Table -->
       <div class="glass-panel mt-4">
         <div class="panel-header">
-          <h3>Recent Retail Transactions</h3>
-          <button class="btn btn-glass" [routerLink]="['/billing']">New POS Billing</button>
+          <div>
+            <h3>Recent Transactions</h3>
+            <p class="panel-subtitle">Latest retail sales and billing records</p>
+          </div>
+          <button class="btn btn-primary btn-sm" [routerLink]="['/billing']">
+            <i class="bi bi-plus-lg"></i> New POS Bill
+          </button>
         </div>
 
         <div class="glass-table-container">
           <table class="glass-table">
             <thead>
               <tr>
-                <th>Invoice No</th>
-                <th>Payment Mode</th>
+                <th>Invoice</th>
+                <th>Payment</th>
                 <th>Subtotal</th>
                 <th>GST</th>
                 <th>Discount</th>
@@ -188,13 +206,13 @@ import { ApiService } from '../core/services/api.service';
                   <td>₹{{ sale.subTotal | number:'1.2-2' }}</td>
                   <td>₹{{ sale.gstTotal | number:'1.2-2' }}</td>
                   <td>₹{{ sale.discountAmount | number:'1.2-2' }}</td>
-                  <td><strong style="color: var(--primary);">₹{{ sale.totalAmount | number:'1.2-2' }}</strong></td>
+                  <td><strong class="text-primary-color">₹{{ sale.totalAmount | number:'1.2-2' }}</strong></td>
                   <td>{{ sale.saleDate | date:'MMM d, yyyy' }}</td>
-                  <td><code>{{ sale.cashier ? sale.cashier.username : 'System' }}</code></td>
+                  <td>{{ sale.cashier ? sale.cashier.username : 'System' }}</td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="8" class="text-center text-muted">No sales completed yet.</td>
+                  <td colspan="8" class="text-center text-muted" style="padding: 32px;">No sales completed yet.</td>
                 </tr>
               }
             </tbody>
@@ -209,23 +227,44 @@ import { ApiService } from '../core/services/api.service';
       flex-direction: column;
       gap: 20px;
     }
-    .dashboard-welcome h1 {
-      font-size: 1.8rem;
-      margin-bottom: 4px;
+
+    /* Welcome Section */
+    .welcome-section {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
     }
-    .dashboard-welcome p {
+    .welcome-text h1 {
+      font-size: 1.5rem;
+      margin-bottom: 2px;
+    }
+    .welcome-text p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      margin: 0;
     }
-    .text-danger { color: var(--danger) !important; }
-    .text-warning { color: var(--warning) !important; }
-    
+    .welcome-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* KPI Icons */
+    .kpi-icon-success { background: rgba(22, 163, 74, 0.08); color: var(--success); }
+    .kpi-icon-primary { background: rgba(15, 118, 110, 0.08); color: var(--primary); }
+    .kpi-icon-info { background: rgba(14, 165, 233, 0.08); color: var(--info); }
+    .kpi-icon-danger { background: rgba(220, 38, 38, 0.08); color: var(--danger); }
+    .kpi-icon-warning { background: rgba(245, 158, 11, 0.08); color: var(--warning); }
+    .kpi-icon-muted { background: var(--bg-muted); color: var(--text-muted); }
+
+    /* Dashboard Split */
     .dashboard-split {
       display: grid;
       grid-template-columns: 2fr 1fr;
       gap: 20px;
     }
-    
+
     @media (max-width: 992px) {
       .dashboard-split {
         grid-template-columns: 1fr;
@@ -234,28 +273,36 @@ import { ApiService } from '../core/services/api.service';
 
     .panel-header {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       margin-bottom: 16px;
+      gap: 12px;
     }
-    
+    .panel-header h3 {
+      margin-bottom: 2px;
+    }
+    .panel-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* Chart */
     .chart-container {
       width: 100%;
       height: 240px;
       margin-top: 10px;
     }
-    
     .svg-chart {
       width: 100%;
       height: 100%;
     }
-    
     .chart-legend {
       display: flex;
-      gap: 16px;
+      gap: 20px;
       justify-content: center;
       margin-top: 12px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--text-secondary);
     }
     .legend-item {
@@ -265,80 +312,101 @@ import { ApiService } from '../core/services/api.service';
     }
     .legend-color {
       width: 12px;
-      height: 12px;
-      border-radius: 3px;
+      height: 3px;
+      border-radius: 2px;
     }
-    
+
+    /* Activity Panel */
     .activity-panel {
       display: flex;
       flex-direction: column;
-      max-height: 380px;
+      max-height: 420px;
     }
-    
     .activity-list {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 0;
       overflow-y: auto;
       flex-grow: 1;
-      margin-top: 16px;
-      padding-right: 4px;
+      margin-top: 12px;
     }
-    
     .activity-item {
       display: flex;
       gap: 12px;
       align-items: flex-start;
-      border-bottom: 1px solid rgba(255,255,255,0.02);
-      padding-bottom: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-light);
     }
     .activity-item:last-child {
       border-bottom: none;
-      padding-bottom: 0;
     }
-    
     .activity-icon {
       width: 32px;
       height: 32px;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.95rem;
+      font-size: 0.85rem;
       flex-shrink: 0;
     }
-    
-    .icon-login { background: rgba(16, 185, 129, 0.1); color: var(--success); }
-    .icon-purchase { background: rgba(14, 165, 233, 0.1); color: var(--info); }
-    .icon-sale { background: rgba(130, 87, 229, 0.1); color: var(--primary); }
-    .icon-generic { background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
-    
+    .icon-login { background: rgba(22, 163, 74, 0.08); color: var(--success); }
+    .icon-purchase { background: rgba(14, 165, 233, 0.08); color: var(--info); }
+    .icon-sale { background: rgba(15, 118, 110, 0.08); color: var(--primary); }
+    .icon-generic { background: var(--bg-muted); color: var(--text-secondary); }
+
     .activity-details {
       display: flex;
       flex-direction: column;
       gap: 2px;
+      min-width: 0;
     }
-    
     .activity-desc {
-      font-size: 0.9rem;
-      line-height: 1.3;
+      font-size: 0.85rem;
+      line-height: 1.35;
       color: var(--text-primary);
+      margin: 0;
     }
-    
     .activity-time {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
       display: flex;
       align-items: center;
       gap: 4px;
     }
-    .py-4 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
-    .text-center { text-align: center; }
+    .activity-time strong {
+      color: var(--primary);
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .empty-state i {
+      font-size: 2rem;
+      opacity: 0.5;
+    }
+
+    @media (max-width: 768px) {
+      .welcome-section {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .welcome-text h1 {
+        font-size: 1.2rem;
+      }
+    }
   `]
 })
 export class DashboardComponent implements OnInit {
   private apiService = inject(ApiService);
-  
+
   username = '';
   metrics = signal<any>({
     summary: {
@@ -378,6 +446,13 @@ export class DashboardComponent implements OnInit {
     });
   }
 
+  getGreeting(): string {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    return 'Evening';
+  }
+
   setupChartLabels(salesData: any[]): void {
     if (!salesData || salesData.length === 0) return;
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -388,15 +463,15 @@ export class DashboardComponent implements OnInit {
   }
 
   // --- Dynamic SVG Graph Generators ---
-  
+
   // Maps a 6-element dataset values into Y coordinates (between 30 and 200, representing ₹0 to ₹10,000)
   mapToCoordinates(data: any[]): number[] {
     const coords = [200, 200, 200, 200, 200, 200];
     if (!data || data.length === 0) return coords;
-    
+
     // Max value limit mapped to top of graph (y=30)
-    const maxVal = 10000; 
-    
+    const maxVal = 10000;
+
     // Sort array elements into last 6 calendar months
     for (let i = 0; i < 6; i++) {
       if (i < data.length) {
@@ -412,28 +487,28 @@ export class DashboardComponent implements OnInit {
   getSalesLine(): string {
     const sales = this.metrics().charts.sales;
     const coords = this.mapToCoordinates(sales);
-    
+
     return `M 40 ${coords[0]} L 146 ${coords[1]} L 252 ${coords[2]} L 358 ${coords[3]} L 464 ${coords[4]} L 570 ${coords[5]}`;
   }
 
   getSalesPath(): string {
     const sales = this.metrics().charts.sales;
     const coords = this.mapToCoordinates(sales);
-    
+
     return `M 40 200 L 40 ${coords[0]} L 146 ${coords[1]} L 252 ${coords[2]} L 358 ${coords[3]} L 464 ${coords[4]} L 570 ${coords[5]} L 570 200 Z`;
   }
 
   getPurchasesLine(): string {
     const purchases = this.metrics().charts.purchases;
     const coords = this.mapToCoordinates(purchases);
-    
+
     return `M 40 ${coords[0]} L 146 ${coords[1]} L 252 ${coords[2]} L 358 ${coords[3]} L 464 ${coords[4]} L 570 ${coords[5]}`;
   }
 
   getPurchasesPath(): string {
     const purchases = this.metrics().charts.purchases;
     const coords = this.mapToCoordinates(purchases);
-    
+
     return `M 40 200 L 40 ${coords[0]} L 146 ${coords[1]} L 252 ${coords[2]} L 358 ${coords[3]} L 464 ${coords[4]} L 570 ${coords[5]} L 570 200 Z`;
   }
 
@@ -441,10 +516,10 @@ export class DashboardComponent implements OnInit {
   getActivityIcon(action: string): string {
     const act = action.toLowerCase();
     if (act.includes('login')) return 'bi-box-arrow-in-right';
-    if (act.includes('purchase')) return 'bi-cart-check-fill';
+    if (act.includes('purchase')) return 'bi-cart-check';
     if (act.includes('sale')) return 'bi-receipt';
-    if (act.includes('create')) return 'bi-plus-circle-fill';
-    return 'bi-info-circle-fill';
+    if (act.includes('create')) return 'bi-plus-circle';
+    return 'bi-info-circle';
   }
 
   getActivityIconClass(action: string): string {
@@ -455,3 +530,4 @@ export class DashboardComponent implements OnInit {
     return 'icon-generic';
   }
 }
+

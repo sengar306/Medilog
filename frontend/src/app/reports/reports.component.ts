@@ -351,8 +351,8 @@ import { ApiService } from '../core/services/api.service';
     }
     .tab-btn:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
     .tab-btn.active {
-      background: rgba(130, 87, 229, 0.2);
-      border-color: rgba(130, 87, 229, 0.4);
+      background: rgba(15, 118, 110, 0.2);
+      border-color: rgba(15, 118, 110, 0.4);
       color: var(--text-primary);
       font-weight: 600;
     }
@@ -375,7 +375,7 @@ import { ApiService } from '../core/services/api.service';
       border-radius: 8px;
       border: 1px solid rgba(130,87,229,0.4);
       background: rgba(130,87,229,0.15);
-      color: #a855f7;
+      color: var(--primary);
       font-size: 0.88rem;
       cursor: pointer;
       font-weight: 600;
@@ -387,7 +387,7 @@ import { ApiService } from '../core/services/api.service';
       border-radius: 8px;
       border: 1px solid rgba(16,185,129,0.4);
       background: rgba(16,185,129,0.1);
-      color: #10b981;
+      color: var(--success);
       font-size: 0.88rem;
       cursor: pointer;
       font-weight: 600;
@@ -402,7 +402,7 @@ import { ApiService } from '../core/services/api.service';
     }
     .spinner {
       width: 36px; height: 36px; border: 3px solid rgba(130,87,229,0.15);
-      border-top-color: #8257e5; border-radius: 50%;
+      border-top-color: var(--primary); border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -418,7 +418,7 @@ import { ApiService } from '../core/services/api.service';
     }
     .kpi-label { font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
     .kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
-    .kpi-mini.success .kpi-value { color: #10b981; }
+    .kpi-mini.success .kpi-value { color: var(--success); }
     .kpi-mini.info .kpi-value { color: #0ea5e9; }
     .kpi-mini.warning .kpi-value { color: #f59e0b; }
     .kpi-mini.danger .kpi-value { color: #ef4444; }
@@ -433,7 +433,7 @@ import { ApiService } from '../core/services/api.service';
     .pay-bar-track { flex-grow: 1; height: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
     .pay-bar-fill { height: 100%; border-radius: 10px; transition: width 0.6s ease; }
     .pay-cash { background: #10b981; }
-    .pay-upi { background: #8257e5; }
+    .pay-upi { background: var(--primary); }
     .pay-card { background: #0ea5e9; }
     .pay-mixed { background: #f59e0b; }
     .pay-amount { width: 90px; text-align: right; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
@@ -458,19 +458,19 @@ import { ApiService } from '../core/services/api.service';
     .med-meta { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
     .med-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 100px; }
     .stat-qty { font-size: 0.75rem; color: var(--text-secondary); }
-    .stat-rev { font-size: 0.95rem; font-weight: 700; color: #10b981; }
+    .stat-rev { font-size: 0.95rem; font-weight: 700; color: var(--success); }
     .rev-bar-track { width: 120px; height: 6px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; }
-    .rev-bar-fill { height: 100%; background: linear-gradient(90deg, #8257e5, #10b981); border-radius: 6px; transition: width 0.6s ease; }
+    .rev-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #10b981); border-radius: 6px; transition: width 0.6s ease; }
 
     /* Profit */
-    .text-success { color: #10b981 !important; }
+    .text-success { color: var(--success) !important; }
     .text-danger { color: #ef4444 !important; }
     .text-warning { color: #f59e0b !important; }
     .margin-pill {
       padding: 3px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600;
       background: rgba(255,255,255,0.06); color: var(--text-secondary);
     }
-    .margin-pill.positive { background: rgba(16,185,129,0.15); color: #10b981; }
+    .margin-pill.positive { background: rgba(16,185,129,0.15); color: var(--success); }
     .margin-pill.low { background: rgba(239,68,68,0.15); color: #ef4444; }
 
     /* GST */

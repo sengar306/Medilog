@@ -10,16 +10,18 @@ import { ApiService } from '../core/services/api.service';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="login-container">
-      <div class="glass-panel animate-fade-in login-card">
-        <div class="logo-area">
-          <i class="bi bi-heart-pulse-fill logo-icon"></i>
-          <h1 class="gradient-text">MediLog</h1>
-          <p>Pharmacy Management System</p>
+      <div class="login-card animate-fade-in">
+        <div class="logo-area" style="text-align: center; margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+            <img src="assets/logo-icon.svg" alt="M+" (error)="$any($event.target).src = '/logo-icon.svg'" style="height: 52px; width: 52px; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(139, 92, 246, 0.45));">
+            <h1 style="margin: 0; font-size: 2.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.6px; line-height: 1;">ediLog</h1>
+          </div>
+          <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Pharmacy Inventory & Billing Platform</p>
         </div>
 
         @if (errorMessage()) {
           <div class="error-alert">
-            <i class="bi bi-exclamation-triangle-fill"></i>
+            <i class="bi bi-exclamation-triangle"></i>
             <span>{{ errorMessage() }}</span>
           </div>
         }
@@ -27,38 +29,36 @@ import { ApiService } from '../core/services/api.service';
         <form (ngSubmit)="handleLogin()">
           <div class="form-group">
             <label class="form-label" for="username">Username</label>
-            <input 
-              type="text" 
-              id="username" 
-              name="username" 
-              [(ngModel)]="username" 
-              class="glass-input" 
-              placeholder="Enter username"
+            <input
+              type="text"
+              id="username"
+              name="username"
+              [(ngModel)]="username"
+              class="glass-input"
+              placeholder="Enter your username"
               required>
           </div>
 
           <div class="form-group">
             <label class="form-label" for="password">Password</label>
-            <input 
-              type="password" 
-              id="password" 
-              name="password" 
-              [(ngModel)]="password" 
-              class="glass-input" 
-              placeholder="Enter password"
+            <input
+              type="password"
+              id="password"
+              name="password"
+              [(ngModel)]="password"
+              class="glass-input"
+              placeholder="Enter your password"
               required>
           </div>
 
           <button type="submit" class="btn btn-primary w-100 mt-2" [disabled]="loading()">
             @if (loading()) {
-              <span class="spinner"></span> Logging in...
+              <span class="spinner"></span> Signing in...
             } @else {
-              <i class="bi bi-box-arrow-in-right"></i> Sign In
+              <i class="bi bi-arrow-right"></i> Sign In
             }
           </button>
         </form>
-
-     
       </div>
     </div>
   `,
@@ -69,46 +69,60 @@ import { ApiService } from '../core/services/api.service';
       justify-content: center;
       min-height: 100vh;
       padding: 20px;
+      background: linear-gradient(135deg, #F0FDFA 0%, #F8FAFC 50%, #EFF6FF 100%);
     }
     .login-card {
       width: 100%;
-      max-width: 440px;
+      max-width: 420px;
       padding: 40px 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
     }
     .logo-area {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 32px;
     }
-    .logo-icon {
-      font-size: 3rem;
-      color: #a855f7;
-      display: inline-block;
-      margin-bottom: 10px;
-      filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.4));
+    .logo-mark {
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-lg);
+      background: var(--primary);
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 12px;
     }
     .logo-area h1 {
-      font-size: 2.2rem;
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--text-primary);
       margin-bottom: 4px;
+      letter-spacing: -0.03em;
     }
     .logo-area p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      margin: 0;
     }
     .error-alert {
       display: flex;
       align-items: center;
       gap: 10px;
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      color: #f87171;
-      padding: 12px;
-      border-radius: 8px;
+      background: rgba(220, 38, 38, 0.06);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+      color: #B91C1C;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
       margin-bottom: 20px;
-      font-size: 0.9rem;
+      font-size: 0.87rem;
     }
     .w-100 { width: 100%; }
     .mt-2 { margin-top: 8px; }
-    .mt-4 { margin-top: 24px; }
     .spinner {
       display: inline-block;
       width: 1rem;
@@ -120,51 +134,6 @@ import { ApiService } from '../core/services/api.service';
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
-    }
-    .demo-accounts {
-      border-top: 1px solid var(--glass-border);
-      padding-top: 20px;
-    }
-    .demo-title {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-secondary);
-      margin-bottom: 10px;
-      font-weight: 600;
-    }
-    .demo-buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .btn-demo {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--glass-border);
-      border-radius: 6px;
-      padding: 8px 12px;
-      color: var(--text-primary);
-      cursor: pointer;
-      font-size: 0.85rem;
-      transition: all 0.2s ease;
-      text-align: left;
-    }
-    .btn-demo:hover {
-      background: var(--glass-hover);
-      border-color: var(--primary);
-    }
-    .btn-demo span {
-      font-weight: 500;
-    }
-    .btn-demo code {
-      font-family: monospace;
-      color: var(--text-secondary);
-      background: rgba(0, 0, 0, 0.2);
-      padding: 2px 6px;
-      border-radius: 4px;
     }
   `]
 })

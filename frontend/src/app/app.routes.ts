@@ -16,6 +16,10 @@ import { PurchaseReturnComponent } from './supplier/purchase-return.component';
 import { UsersComponent } from './users/users.component';
 import { SettingsComponent } from './settings/settings.component';
 import { MedicineTransferComponent } from './inventory/medicine-transfer.component';
+import { StockistCatalogComponent } from './stockist/stockist-catalog.component';
+import { StockistOrdersComponent } from './stockist/stockist-orders.component';
+import { ChemistMarketplaceComponent } from './stockist/chemist-marketplace.component';
+import { MarketingComponent } from './marketing/marketing.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -38,6 +42,11 @@ export const routes: Routes = [
       { path: 'reports', component: ReportsComponent },
       { path: 'customers', component: CustomersComponent },
       { path: 'expiry-alerts', component: ExpiryAlertsComponent },
+      { path: 'stockist-catalog', component: StockistCatalogComponent },
+      { path: 'stockist-orders', component: StockistOrdersComponent },
+      { path: 'stockist-marketplace', component: ChemistMarketplaceComponent },
+      { path: 'my-b2b-orders', component: ChemistMarketplaceComponent },
+      { path: 'marketing', component: MarketingComponent },
       { path: 'users', component: UsersComponent },
       { path: 'settings', component: SettingsComponent }
     ]

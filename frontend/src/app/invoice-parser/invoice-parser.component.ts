@@ -120,21 +120,21 @@ import { ApiService } from '../core/services/api.service';
                 @if (parsedResult().totals.schDiscount && parsedResult().totals.schDiscount > 0) {
                   <div class="totals-row mt-1">
                     <span>Sch. Discount:</span>
-                    <span style="color: #a855f7; font-weight: 600;">-₹{{ parsedResult().totals.schDiscount | number:'1.2-2' }}</span>
+                    <span style="color: var(--primary); font-weight: 600;">-₹{{ parsedResult().totals.schDiscount | number:'1.2-2' }}</span>
                   </div>
                 }
 
                 @if (parsedResult().totals.billDiscount && parsedResult().totals.billDiscount > 0) {
                   <div class="totals-row mt-1">
                     <span>Bill Discount:</span>
-                    <span style="color: #a855f7; font-weight: 600;">-₹{{ parsedResult().totals.billDiscount | number:'1.2-2' }}</span>
+                    <span style="color: var(--primary); font-weight: 600;">-₹{{ parsedResult().totals.billDiscount | number:'1.2-2' }}</span>
                   </div>
                 }
 
                 @if ((!parsedResult().totals.schDiscount && !parsedResult().totals.billDiscount) && parsedResult().totals.totalDiscount && parsedResult().totals.totalDiscount > 0) {
                   <div class="totals-row mt-1">
                     <span>Total Discount:</span>
-                    <span style="color: #a855f7; font-weight: 600;">-₹{{ parsedResult().totals.totalDiscount | number:'1.2-2' }}</span>
+                    <span style="color: var(--primary); font-weight: 600;">-₹{{ parsedResult().totals.totalDiscount | number:'1.2-2' }}</span>
                   </div>
                 }
 
@@ -266,7 +266,7 @@ import { ApiService } from '../core/services/api.service';
     }
     .upload-zone:hover, .upload-zone.drag-over {
       border-color: var(--primary);
-      background: rgba(130, 87, 229, 0.05);
+      background: rgba(15, 118, 110, 0.05);
     }
     .upload-prompt {
       display: flex;

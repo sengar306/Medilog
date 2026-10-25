@@ -2,11 +2,12 @@ import { Component, inject, OnInit, signal, isDevMode } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-prescriptions',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="rx-container animate-fade-in">
       <div class="page-header">
@@ -107,166 +108,162 @@ import { ApiService } from '../core/services/api.service';
         }
       </div>
 
-      <!-- Create Prescription Modal -->
-      @if (showCreateModal) {
-        <div class="modal-overlay" (click)="closeModal()">
-          <div class="modal-panel glass-panel" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3><i class="bi bi-plus-circle-fill" style="color: #8257e5;"></i> New Prescription</h3>
-              <button class="btn-icon" (click)="closeModal()"><i class="bi bi-x-lg"></i></button>
+      <!-- Create Prescription Side Drawer -->
+      <app-side-drawer
+        [open]="showCreateModal"
+        title="Add New Prescription"
+        subtitle="Log doctor prescription linked to patient account"
+        width="600px"
+        primaryButtonText="Save Prescription"
+        secondaryButtonText="Cancel"
+        [submitLoading]="saving()"
+        (closed)="closeModal()"
+        (submitted)="savePrescription()">
+        
+        <!-- Patient Info -->
+        <div class="form-section">
+          <h4 class="section-title">🧑 Patient Information</h4>
+          <div class="form-grid">
+            <div class="form-group mb-2">
+              <label>Patient Name *</label>
+              <input type="text" class="form-control" [(ngModel)]="form.patientName" placeholder="Full name" id="rx-patient-name" />
             </div>
-
-            <div class="modal-body">
-              <!-- Patient Info -->
-              <div class="form-section">
-                <h4 class="section-title">🧑 Patient Information</h4>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>Patient Name *</label>
-                    <input type="text" class="form-control" [(ngModel)]="form.patientName" placeholder="Full name" id="rx-patient-name" />
-                  </div>
-                  <div class="form-group">
-                    <label>Phone (links to customer)</label>
-                    <input type="tel" class="form-control" [(ngModel)]="form.customerPhone" placeholder="10-digit number" id="rx-customer-phone" />
-                  </div>
-                  <div class="form-group">
-                    <label>Age</label>
-                    <input type="number" class="form-control" [(ngModel)]="form.patientAge" placeholder="Years" id="rx-patient-age" />
-                  </div>
-                  <div class="form-group">
-                    <label>Gender</label>
-                    <select class="form-control" [(ngModel)]="form.patientGender" id="rx-patient-gender">
-                      <option value="">Select</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Doctor Info -->
-              <div class="form-section">
-                <h4 class="section-title">🩺 Doctor Information</h4>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>Doctor Name *</label>
-                    <input type="text" class="form-control" [(ngModel)]="form.doctorName" placeholder="Dr. Full Name" id="rx-doctor-name" />
-                  </div>
-                  <div class="form-group">
-                    <label>Registration No.</label>
-                    <input type="text" class="form-control" [(ngModel)]="form.doctorRegistrationNo" placeholder="MCI number" id="rx-doctor-reg" />
-                  </div>
-                  <div class="form-group">
-                    <label>Clinic / Hospital</label>
-                    <input type="text" class="form-control" [(ngModel)]="form.clinicName" placeholder="Clinic name" id="rx-clinic" />
-                  </div>
-                  <div class="form-group">
-                    <label>Prescription Date</label>
-                    <input type="date" class="form-control" [(ngModel)]="form.prescriptionDate" id="rx-date" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Prescribed Medicines -->
-              <div class="form-section">
-                <div class="section-title-row">
-                  <h4 class="section-title">💊 Prescribed Medicines</h4>
-                  <button class="btn-add-med" (click)="addMedicineRow()"><i class="bi bi-plus"></i> Add</button>
-                </div>
-                @for (med of form.medicines; track $index; let i = $index) {
-                  <div class="med-row">
-                    <input type="text" class="form-control" [(ngModel)]="med.name" placeholder="Medicine name" [id]="'rx-med-' + i" />
-                    <input type="text" class="form-control" [(ngModel)]="med.dosage" placeholder="Dosage (e.g. 500mg BD)" [id]="'rx-dosage-' + i" />
-                    <input type="text" class="form-control" [(ngModel)]="med.duration" placeholder="Duration (e.g. 5 days)" [id]="'rx-duration-' + i" />
-                    <button class="btn-remove" (click)="removeMedicineRow(i)"><i class="bi bi-trash-fill"></i></button>
-                  </div>
-                }
-              </div>
-
-              <!-- Diagnosis & Notes -->
-              <div class="form-section">
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>Diagnosis</label>
-                    <input type="text" class="form-control" [(ngModel)]="form.diagnosis" placeholder="e.g. Viral fever, Hypertension" id="rx-diagnosis" />
-                  </div>
-                  <div class="form-group">
-                    <label>Notes</label>
-                    <input type="text" class="form-control" [(ngModel)]="form.notes" placeholder="Additional notes" id="rx-notes" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Image Upload -->
-              <div class="form-section">
-                <h4 class="section-title">📷 Upload Prescription Image (optional)</h4>
-                <input type="file" class="form-control" (change)="onFileChange($event)" accept=".jpg,.jpeg,.png,.pdf" id="rx-image-upload" />
-                @if (imagePreview) {
-                  <img [src]="imagePreview" class="rx-preview" alt="Prescription preview" />
-                }
-              </div>
+            <div class="form-group mb-2">
+              <label>Phone (links to customer)</label>
+              <input type="tel" class="form-control" [(ngModel)]="form.customerPhone" placeholder="10-digit number" id="rx-customer-phone" />
             </div>
-
-            <div class="modal-footer">
-              @if (saveError) { <p class="error-msg">{{ saveError }}</p> }
-              <button class="btn btn-glass" (click)="closeModal()">Cancel</button>
-              <button class="btn btn-primary-glass" (click)="savePrescription()" [disabled]="saving()">
-                @if (saving()) { <span class="spinner-sm"></span> Saving... }
-                @else { <i class="bi bi-check-lg"></i> Save Prescription }
-              </button>
+            <div class="form-group mb-2">
+              <label>Age</label>
+              <input type="number" class="form-control" [(ngModel)]="form.patientAge" placeholder="Years" id="rx-patient-age" />
+            </div>
+            <div class="form-group mb-2">
+              <label>Gender</label>
+              <select class="form-control" [(ngModel)]="form.patientGender" id="rx-patient-gender">
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
           </div>
         </div>
-      }
 
-      <!-- View Prescription Modal -->
-      @if (viewingRx()) {
-        <div class="modal-overlay" (click)="viewingRx.set(null)">
-          <div class="modal-panel glass-panel" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3><i class="bi bi-file-earmark-medical-fill" style="color: #8257e5;"></i> Prescription Details</h3>
-              <button class="btn-icon" (click)="viewingRx.set(null)"><i class="bi bi-x-lg"></i></button>
+        <!-- Doctor Info -->
+        <div class="form-section mt-3">
+          <h4 class="section-title">🩺 Doctor Information</h4>
+          <div class="form-grid">
+            <div class="form-group mb-2">
+              <label>Doctor Name *</label>
+              <input type="text" class="form-control" [(ngModel)]="form.doctorName" placeholder="Dr. Full Name" id="rx-doctor-name" />
             </div>
-            <div class="modal-body rx-details">
-              <div class="rx-detail-grid">
-                <div class="detail-row"><span>Patient</span><strong>{{ viewingRx()?.patientName }} ({{ viewingRx()?.patientAge || '?' }}y, {{ viewingRx()?.patientGender || '—' }})</strong></div>
-                <div class="detail-row"><span>Doctor</span><strong>Dr. {{ viewingRx()?.doctorName }}</strong></div>
-                <div class="detail-row"><span>Reg No.</span><strong>{{ viewingRx()?.doctorRegistrationNo || '—' }}</strong></div>
-                <div class="detail-row"><span>Clinic</span><strong>{{ viewingRx()?.clinicName || '—' }}</strong></div>
-                <div class="detail-row"><span>Date</span><strong>{{ viewingRx()?.prescriptionDate | date:'dd MMM yyyy' }}</strong></div>
-                <div class="detail-row"><span>Diagnosis</span><strong>{{ viewingRx()?.diagnosis || '—' }}</strong></div>
-                <div class="detail-row"><span>Status</span><span class="badge" [ngClass]="getStatusBadge(viewingRx()?.status)">{{ viewingRx()?.status }}</span></div>
-                @if (viewingRx()?.sale) {
-                  <div class="detail-row"><span>Linked Invoice</span><code>{{ viewingRx()?.sale?.invoiceNumber }}</code></div>
-                }
-              </div>
+            <div class="form-group mb-2">
+              <label>Registration No.</label>
+              <input type="text" class="form-control" [(ngModel)]="form.doctorRegistrationNo" placeholder="MCI number" id="rx-doctor-reg" />
+            </div>
+            <div class="form-group mb-2">
+              <label>Clinic / Hospital</label>
+              <input type="text" class="form-control" [(ngModel)]="form.clinicName" placeholder="Clinic name" id="rx-clinic" />
+            </div>
+            <div class="form-group mb-2">
+              <label>Prescription Date</label>
+              <input type="date" class="form-control" [(ngModel)]="form.prescriptionDate" id="rx-date" />
+            </div>
+          </div>
+        </div>
 
-              @if (viewingRx()?.medicines?.length > 0) {
-                <div class="rx-med-list">
-                  <h4>Prescribed Medicines</h4>
-                  @for (m of viewingRx()?.medicines; track $index) {
-                    <div class="rx-med-item">
-                      <i class="bi bi-capsule" style="color: #8257e5;"></i>
-                      <div>
-                        <strong>{{ m.name }}</strong>
-                        <span class="text-muted"> · {{ m.dosage }} · {{ m.duration }}</span>
-                      </div>
+        <!-- Prescribed Medicines -->
+        <div class="form-section mt-3">
+          <div class="section-title-row" style="display: flex; justify-content: space-between; align-items: center;">
+            <h4 class="section-title">💊 Prescribed Medicines</h4>
+            <button class="btn-add-med btn btn-sm btn-glass" (click)="addMedicineRow()"><i class="bi bi-plus"></i> Add</button>
+          </div>
+          @for (med of form.medicines; track $index; let i = $index) {
+            <div class="med-row mt-2" style="display: flex; gap: 8px;">
+              <input type="text" class="form-control" [(ngModel)]="med.name" placeholder="Medicine name" [id]="'rx-med-' + i" />
+              <input type="text" class="form-control" [(ngModel)]="med.dosage" placeholder="Dosage (500mg BD)" [id]="'rx-dosage-' + i" />
+              <input type="text" class="form-control" [(ngModel)]="med.duration" placeholder="Duration (5 days)" [id]="'rx-duration-' + i" />
+              <button class="btn-remove btn btn-sm btn-danger" (click)="removeMedicineRow(i)"><i class="bi bi-trash-fill"></i></button>
+            </div>
+          }
+        </div>
+
+        <!-- Diagnosis & Notes -->
+        <div class="form-section mt-3">
+          <div class="form-grid">
+            <div class="form-group mb-2">
+              <label>Diagnosis</label>
+              <input type="text" class="form-control" [(ngModel)]="form.diagnosis" placeholder="e.g. Viral fever, Hypertension" id="rx-diagnosis" />
+            </div>
+            <div class="form-group mb-2">
+              <label>Notes</label>
+              <input type="text" class="form-control" [(ngModel)]="form.notes" placeholder="Additional notes" id="rx-notes" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Image Upload -->
+        <div class="form-section mt-3">
+          <h4 class="section-title">📷 Upload Prescription Image (optional)</h4>
+          <input type="file" class="form-control" (change)="onFileChange($event)" accept=".jpg,.jpeg,.png,.pdf" id="rx-image-upload" />
+          @if (imagePreview) {
+            <img [src]="imagePreview" class="rx-preview mt-2" style="max-height: 120px; border-radius: 8px;" alt="Prescription preview" />
+          }
+        </div>
+
+        @if (saveError) { <p class="error-msg alert alert-danger mt-2">{{ saveError }}</p> }
+      </app-side-drawer>
+
+      <!-- View Prescription Side Drawer -->
+      <app-side-drawer
+        [open]="!!viewingRx()"
+        title="Prescription Details"
+        [subtitle]="'Rx for ' + (viewingRx()?.patientName || '')"
+        width="560px"
+        [showFooter]="true"
+        secondaryButtonText="Close"
+        primaryButtonText="Done"
+        (closed)="viewingRx.set(null)"
+        (submitted)="viewingRx.set(null)">
+        
+        @if (viewingRx()) {
+          <div class="rx-details">
+            <div class="rx-detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--bg-muted); padding: 14px; border-radius: 10px;">
+              <div class="detail-row"><span>Patient:</span> <strong>{{ viewingRx()?.patientName }} ({{ viewingRx()?.patientAge || '?' }}y, {{ viewingRx()?.patientGender || '—' }})</strong></div>
+              <div class="detail-row"><span>Doctor:</span> <strong>Dr. {{ viewingRx()?.doctorName }}</strong></div>
+              <div class="detail-row"><span>Reg No:</span> <strong>{{ viewingRx()?.doctorRegistrationNo || '—' }}</strong></div>
+              <div class="detail-row"><span>Clinic:</span> <strong>{{ viewingRx()?.clinicName || '—' }}</strong></div>
+              <div class="detail-row"><span>Date:</span> <strong>{{ viewingRx()?.prescriptionDate | date:'dd MMM yyyy' }}</strong></div>
+              <div class="detail-row"><span>Diagnosis:</span> <strong>{{ viewingRx()?.diagnosis || '—' }}</strong></div>
+              <div class="detail-row"><span>Status:</span> <span class="badge" [ngClass]="getStatusBadge(viewingRx()?.status)">{{ viewingRx()?.status }}</span></div>
+              @if (viewingRx()?.sale) {
+                <div class="detail-row"><span>Invoice:</span> <code>{{ viewingRx()?.sale?.invoiceNumber }}</code></div>
+              }
+            </div>
+
+            @if (viewingRx()?.medicines?.length > 0) {
+              <div class="rx-med-list mt-4">
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 8px;">Prescribed Medicines</h4>
+                @for (m of viewingRx()?.medicines; track $index) {
+                  <div class="rx-med-item glass-panel mb-2" style="padding: 10px 14px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                    <i class="bi bi-capsule" style="color: var(--primary);"></i>
+                    <div>
+                      <strong>{{ m.name }}</strong>
+                      <span class="text-muted"> · {{ m.dosage }} · {{ m.duration }}</span>
                     </div>
-                  }
-                </div>
-              }
+                  </div>
+                }
+              </div>
+            }
 
-              @if (viewingRx()?.imageUrl) {
-                <div class="rx-image-section">
-                  <h4>Prescription Image</h4>
-                  <img [src]="(isDevMode ? 'http://localhost:5000' : 'https://medilog-dza5.onrender.com') + viewingRx()?.imageUrl" class="rx-view-img" alt="Prescription" />
-                </div>
-              }
-            </div>
+            @if (viewingRx()?.imageUrl) {
+              <div class="rx-image-section mt-4">
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 8px;">Prescription Image</h4>
+                <img [src]="(isDevMode ? 'http://localhost:5000' : 'https://medilog-dza5.onrender.com') + viewingRx()?.imageUrl" class="rx-view-img" style="max-width: 100%; border-radius: 10px; border: 1px solid var(--border);" alt="Prescription" />
+              </div>
+            }
           </div>
-        </div>
-      }
+        }
+      </app-side-drawer>
     </div>
   `,
   styles: [`
@@ -276,7 +273,7 @@ import { ApiService } from '../core/services/api.service';
     .sub-title { color: var(--text-secondary); font-size: 0.9rem; }
     .btn-primary-glass {
       padding: 10px 18px; border-radius: 10px; border: 1px solid rgba(130,87,229,0.4);
-      background: rgba(130,87,229,0.15); color: #a855f7; font-weight: 600; cursor: pointer;
+      background: rgba(130,87,229,0.15); color: var(--primary); font-weight: 600; cursor: pointer;
       display: flex; align-items: center; gap: 8px; transition: all 0.2s; font-size: 0.9rem;
     }
     .filter-bar { display: flex; gap: 12px; align-items: center; padding: 14px 20px; flex-wrap: wrap; }
@@ -288,12 +285,12 @@ import { ApiService } from '../core/services/api.service';
     select.form-control option { background: #1a1625; }
     .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px; color: var(--text-secondary); }
-    .spinner { width: 32px; height: 32px; border: 3px solid rgba(130,87,229,0.15); border-top-color: #8257e5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner { width: 32px; height: 32px; border: 3px solid rgba(130,87,229,0.15); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .text-muted { color: var(--text-muted); font-size: 0.8rem; }
     .text-info { color: #0ea5e9; font-size: 0.78rem; }
     .med-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-    .med-tag { padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; background: rgba(130,87,229,0.15); color: #a855f7; font-weight: 600; }
+    .med-tag { padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; background: rgba(130,87,229,0.15); color: var(--primary); font-weight: 600; }
     .med-tag.more { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
     .action-btns { display: flex; gap: 6px; }
     .btn-action {
@@ -302,7 +299,7 @@ import { ApiService } from '../core/services/api.service';
       display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.15s;
     }
     .btn-action:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.15); }
-    .btn-action.success:hover { color: #10b981; border-color: rgba(16,185,129,0.4); }
+    .btn-action.success:hover { color: var(--success); border-color: rgba(16,185,129,0.4); }
     .btn-action:disabled { opacity: 0.3; cursor: not-allowed; }
     .empty-row { text-align: center; padding: 40px; color: var(--text-muted); }
 
@@ -339,11 +336,11 @@ import { ApiService } from '../core/services/api.service';
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-group label { font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }
     .med-row { display: grid; grid-template-columns: 2fr 2fr 1.5fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
-    .btn-add-med { padding: 6px 12px; border-radius: 7px; border: 1px solid rgba(130,87,229,0.3); background: rgba(130,87,229,0.1); color: #a855f7; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
+    .btn-add-med { padding: 6px 12px; border-radius: 7px; border: 1px solid rgba(130,87,229,0.3); background: rgba(130,87,229,0.1); color: var(--primary); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
     .btn-remove { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; border-radius: 7px; padding: 8px 10px; cursor: pointer; }
     .rx-preview { max-height: 150px; border-radius: 8px; margin-top: 8px; border: 1px solid var(--glass-border); }
     .error-msg { color: #ef4444; font-size: 0.85rem; flex-grow: 1; }
-    .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 4px; }
+    .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--text-primary); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 4px; }
 
     /* View Rx */
     .rx-details { display: flex; flex-direction: column; gap: 16px; }

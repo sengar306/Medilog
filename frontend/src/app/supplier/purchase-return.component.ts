@@ -2,11 +2,12 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-purchase-returns',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="returns-container animate-fade-in">
       <div class="page-header">
@@ -72,133 +73,127 @@ import { ApiService } from '../core/services/api.service';
         }
       </div>
 
-      <!-- Create Return Modal -->
-      @if (showCreateModal) {
-        <div class="modal-overlay" (click)="closeModal()">
-          <div class="modal-panel glass-panel" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3><i class="bi bi-arrow-return-left" style="color: #ef4444;"></i> Create Purchase Return</h3>
-              <button class="btn-icon" (click)="closeModal()"><i class="bi bi-x-lg"></i></button>
-            </div>
+      <!-- Create Return Side Drawer -->
+      <app-side-drawer
+        [open]="showCreateModal"
+        title="Create Purchase Return"
+        subtitle="Issue debit note & return inventory to wholesaler"
+        width="600px"
+        primaryButtonText="Process Return"
+        secondaryButtonText="Cancel"
+        [submitLoading]="saving()"
+        (closed)="closeModal()"
+        (submitted)="saveReturn()">
+        
+        <!-- Step 1: Select Purchase -->
+        <div class="form-section">
+          <h4 class="section-title">📦 Select Purchase Order</h4>
+          <select class="form-control" [(ngModel)]="selectedPurchaseId" (change)="onPurchaseSelect()" id="ret-purchase-select">
+            <option value="">— Choose a Purchase Invoice —</option>
+            @for (p of purchases(); track p._id) {
+              <option [value]="p._id">{{ p.invoiceNumber }} — {{ p.supplier?.name }} ({{ p.invoiceDate | date:'dd MMM yy' }}) — ₹{{ p.totalAmount }}</option>
+            }
+          </select>
+        </div>
 
-            <div class="modal-body">
-              <!-- Step 1: Select Purchase -->
-              <div class="form-section">
-                <h4 class="section-title">📦 Select Purchase Order</h4>
-                <select class="form-control" [(ngModel)]="selectedPurchaseId" (change)="onPurchaseSelect()" id="ret-purchase-select">
-                  <option value="">— Choose a Purchase Invoice —</option>
-                  @for (p of purchases(); track p._id) {
-                    <option [value]="p._id">{{ p.invoiceNumber }} — {{ p.supplier?.name }} ({{ p.invoiceDate | date:'dd MMM yy' }}) — ₹{{ p.totalAmount }}</option>
+        <!-- Return Reason -->
+        <div class="form-section mt-3">
+          <h4 class="section-title">📝 Return Reason</h4>
+          <input type="text" class="form-control" [(ngModel)]="returnReason" placeholder="e.g. Damaged goods, Near expiry, Wrong product" id="ret-reason" />
+        </div>
+
+        <!-- Items to Return -->
+        <div class="form-section mt-3">
+          <div class="section-title-row" style="display: flex; justify-content: space-between; align-items: center;">
+            <h4 class="section-title">💊 Items to Return</h4>
+            <button class="btn-add-med btn btn-sm btn-glass" (click)="addReturnItem()"><i class="bi bi-plus"></i> Add Item</button>
+          </div>
+
+          @for (item of returnItems; track $index; let i = $index) {
+            <div class="return-item-row glass-panel mt-2" style="padding: 12px; border-radius: 8px;">
+              <div class="form-group mb-2">
+                <label style="font-size: 0.8rem;">Medicine</label>
+                <select class="form-control" [(ngModel)]="item.medicineId" [id]="'ret-med-' + i">
+                  <option value="">Select medicine</option>
+                  @for (m of medicines(); track m._id) {
+                    <option [value]="m._id">{{ m.name }} {{ m.strength }}</option>
                   }
                 </select>
               </div>
-
-              <!-- Return Reason -->
-              <div class="form-section">
-                <h4 class="section-title">📝 Return Reason</h4>
-                <input type="text" class="form-control" [(ngModel)]="returnReason" placeholder="e.g. Damaged goods, Near expiry, Wrong product" id="ret-reason" />
-              </div>
-
-              <!-- Items to Return -->
-              <div class="form-section">
-                <div class="section-title-row">
-                  <h4 class="section-title">💊 Items to Return</h4>
-                  <button class="btn-add-med" (click)="addReturnItem()"><i class="bi bi-plus"></i> Add Item</button>
+              <div class="row-flex" style="display: flex; gap: 8px;">
+                <div class="form-group w-50">
+                  <label style="font-size: 0.8rem;">Batch Number</label>
+                  <input type="text" class="form-control" [(ngModel)]="item.batchNumber" placeholder="Batch no." [id]="'ret-batch-' + i" />
                 </div>
-
-                @for (item of returnItems; track $index; let i = $index) {
-                  <div class="return-item-row glass-panel">
-                    <div class="form-group">
-                      <label>Medicine</label>
-                      <select class="form-control" [(ngModel)]="item.medicineId" [id]="'ret-med-' + i">
-                        <option value="">Select medicine</option>
-                        @for (m of medicines(); track m._id) {
-                          <option [value]="m._id">{{ m.name }} {{ m.strength }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label>Batch Number</label>
-                      <input type="text" class="form-control" [(ngModel)]="item.batchNumber" placeholder="Batch no." [id]="'ret-batch-' + i" />
-                    </div>
-                    <div class="form-group">
-                      <label>Return Qty</label>
-                      <input type="number" class="form-control" [(ngModel)]="item.returnQuantity" min="1" [id]="'ret-qty-' + i" />
-                    </div>
-                    <div class="form-group">
-                      <label>Item Reason</label>
-                      <input type="text" class="form-control" [(ngModel)]="item.reason" placeholder="Optional" [id]="'ret-item-reason-' + i" />
-                    </div>
-                    <button class="btn-remove" (click)="removeReturnItem(i)"><i class="bi bi-trash-fill"></i></button>
-                  </div>
-                }
-
-                @if (returnItems.length === 0) {
-                  <p class="text-muted" style="text-align:center; padding:16px;">Click "Add Item" to specify what to return</p>
-                }
-              </div>
-
-              <div class="form-section">
-                <h4 class="section-title">💬 Remarks</h4>
-                <input type="text" class="form-control" [(ngModel)]="returnRemarks" placeholder="Optional internal remarks" id="ret-remarks" />
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              @if (saveError) { <p class="error-msg">{{ saveError }}</p> }
-              <button class="btn btn-glass" (click)="closeModal()">Cancel</button>
-              <button class="btn btn-danger-glass" (click)="saveReturn()" [disabled]="saving()">
-                @if (saving()) { <span class="spinner-sm"></span> Processing... }
-                @else { <i class="bi bi-arrow-return-left"></i> Process Return }
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- View Return Modal -->
-      @if (viewingReturn()) {
-        <div class="modal-overlay" (click)="viewingReturn.set(null)">
-          <div class="modal-panel glass-panel" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3><i class="bi bi-arrow-return-left" style="color: #ef4444;"></i> Return Details</h3>
-              <button class="btn-icon" (click)="viewingReturn.set(null)"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div class="modal-body">
-              <div class="rx-detail-grid">
-                <div class="detail-row"><span>Return No.</span><code>{{ viewingReturn()?.returnNumber }}</code></div>
-                <div class="detail-row"><span>Debit Note</span><code class="text-info">{{ viewingReturn()?.debitNoteNumber }}</code></div>
-                <div class="detail-row"><span>Supplier</span><strong>{{ viewingReturn()?.supplier?.name }}</strong></div>
-                <div class="detail-row"><span>Return Date</span><strong>{{ viewingReturn()?.returnDate | date:'dd MMM yyyy' }}</strong></div>
-                <div class="detail-row"><span>Reason</span><strong>{{ viewingReturn()?.reason || '—' }}</strong></div>
-                <div class="detail-row"><span>Total Return</span><strong class="text-danger">₹{{ viewingReturn()?.totalReturnAmount | number:'1.2-2' }}</strong></div>
-                <div class="detail-row"><span>Status</span><span class="badge" [ngClass]="getStatusBadge(viewingReturn()?.status)">{{ viewingReturn()?.status }}</span></div>
-              </div>
-
-              <div class="rx-med-list" style="margin-top:20px;">
-                <h4>Returned Items</h4>
-                <div class="glass-table-container">
-                  <table class="glass-table">
-                    <thead><tr><th>Medicine</th><th>Batch</th><th>Qty</th><th>Rate</th><th>Amount</th><th>Reason</th></tr></thead>
-                    <tbody>
-                      @for (item of viewingReturn()?.items; track $index) {
-                        <tr>
-                          <td>{{ item.medicine?.name || '—' }}</td>
-                          <td><code>{{ item.batchNumber }}</code></td>
-                          <td>{{ item.returnQuantity }}</td>
-                          <td>₹{{ item.purchaseRate }}</td>
-                          <td><strong class="text-danger">₹{{ item.returnAmount | number:'1.2-2' }}</strong></td>
-                          <td>{{ item.reason || '—' }}</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
+                <div class="form-group w-50">
+                  <label style="font-size: 0.8rem;">Return Qty</label>
+                  <input type="number" class="form-control" [(ngModel)]="item.returnQuantity" min="1" [id]="'ret-qty-' + i" />
                 </div>
               </div>
+              <div class="form-group mt-2" style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" class="form-control" [(ngModel)]="item.reason" placeholder="Item reason (Optional)" [id]="'ret-item-reason-' + i" />
+                <button class="btn-remove btn btn-sm btn-danger" (click)="removeReturnItem(i)"><i class="bi bi-trash-fill"></i></button>
+              </div>
+            </div>
+          }
+
+          @if (returnItems.length === 0) {
+            <p class="text-muted text-center py-3">Click "Add Item" to specify what to return</p>
+          }
+        </div>
+
+        <div class="form-section mt-3">
+          <h4 class="section-title">💬 Remarks</h4>
+          <input type="text" class="form-control" [(ngModel)]="returnRemarks" placeholder="Optional internal remarks" id="ret-remarks" />
+        </div>
+
+        @if (saveError) { <p class="error-msg alert alert-danger mt-2">{{ saveError }}</p> }
+      </app-side-drawer>
+
+      <!-- View Return Side Drawer -->
+      <app-side-drawer
+        [open]="!!viewingReturn()"
+        [title]="'Return Details: ' + (viewingReturn()?.returnNumber || '')"
+        subtitle="Debit Note & Returned Inventory Items"
+        width="600px"
+        [showFooter]="true"
+        secondaryButtonText="Close"
+        primaryButtonText="Done"
+        (closed)="viewingReturn.set(null)"
+        (submitted)="viewingReturn.set(null)">
+        
+        @if (viewingReturn()) {
+          <div class="rx-detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--bg-muted); padding: 14px; border-radius: 10px;">
+            <div class="detail-row"><span>Return No:</span> <code>{{ viewingReturn()?.returnNumber }}</code></div>
+            <div class="detail-row"><span>Debit Note:</span> <code class="text-info">{{ viewingReturn()?.debitNoteNumber }}</code></div>
+            <div class="detail-row"><span>Supplier:</span> <strong>{{ viewingReturn()?.supplier?.name }}</strong></div>
+            <div class="detail-row"><span>Date:</span> <strong>{{ viewingReturn()?.returnDate | date:'dd MMM yyyy' }}</strong></div>
+            <div class="detail-row"><span>Reason:</span> <strong>{{ viewingReturn()?.reason || '—' }}</strong></div>
+            <div class="detail-row"><span>Total:</span> <strong class="text-danger">₹{{ viewingReturn()?.totalReturnAmount | number:'1.2-2' }}</strong></div>
+          </div>
+
+          <div class="rx-med-list mt-4">
+            <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 8px;">Returned Items</h4>
+            <div class="glass-table-container">
+              <table class="glass-table">
+                <thead><tr><th>Medicine</th><th>Batch</th><th>Qty</th><th>Rate</th><th>Amount</th><th>Reason</th></tr></thead>
+                <tbody>
+                  @for (item of viewingReturn()?.items; track $index) {
+                    <tr>
+                      <td>{{ item.medicine?.name || '—' }}</td>
+                      <td><code>{{ item.batchNumber }}</code></td>
+                      <td>{{ item.returnQuantity }}</td>
+                      <td>₹{{ item.purchaseRate }}</td>
+                      <td><strong class="text-danger">₹{{ item.returnAmount | number:'1.2-2' }}</strong></td>
+                      <td>{{ item.reason || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      }
+        }
+      </app-side-drawer>
     </div>
   `,
   styles: [`
@@ -206,13 +201,13 @@ import { ApiService } from '../core/services/api.service';
     .page-header { display: flex; align-items: flex-start; justify-content: space-between; }
     h1 { font-size: 1.8rem; margin-bottom: 4px; }
     .sub-title { color: var(--text-secondary); font-size: 0.9rem; }
-    .btn-primary-glass { padding: 10px 18px; border-radius: 10px; border: 1px solid rgba(130,87,229,0.4); background: rgba(130,87,229,0.15); color: #a855f7; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; font-size: 0.9rem; }
+    .btn-primary-glass { padding: 10px 18px; border-radius: 10px; border: 1px solid rgba(130,87,229,0.4); background: rgba(130,87,229,0.15); color: var(--primary); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; font-size: 0.9rem; }
     .btn-danger-glass { padding: 10px 18px; border-radius: 10px; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; font-size: 0.9rem; }
     .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .form-control { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-primary); padding: 8px 12px; font-size: 0.9rem; width: 100%; }
     select.form-control option { background: #1a1625; }
     .loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px; color: var(--text-secondary); }
-    .spinner { width: 32px; height: 32px; border: 3px solid rgba(130,87,229,0.15); border-top-color: #8257e5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner { width: 32px; height: 32px; border: 3px solid rgba(130,87,229,0.15); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .text-danger { color: #ef4444; }
     .text-info { color: #0ea5e9; }
@@ -236,10 +231,10 @@ import { ApiService } from '../core/services/api.service';
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-group label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
     .return-item-row { display: grid; grid-template-columns: 2fr 1.5fr 1fr 1.5fr auto; gap: 10px; align-items: flex-end; padding: 14px 16px; margin-bottom: 8px; }
-    .btn-add-med { padding: 6px 12px; border-radius: 7px; border: 1px solid rgba(130,87,229,0.3); background: rgba(130,87,229,0.1); color: #a855f7; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
+    .btn-add-med { padding: 6px 12px; border-radius: 7px; border: 1px solid rgba(130,87,229,0.3); background: rgba(130,87,229,0.1); color: var(--primary); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; }
     .btn-remove { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; border-radius: 7px; padding: 8px 10px; cursor: pointer; }
     .error-msg { color: #ef4444; font-size: 0.85rem; flex-grow: 1; }
-    .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 4px; }
+    .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--text-primary); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 4px; }
 
     .rx-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .detail-row { display: flex; flex-direction: column; gap: 4px; }

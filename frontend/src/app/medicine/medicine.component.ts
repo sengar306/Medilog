@@ -2,11 +2,12 @@ import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-medicine',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="medicine-container animate-fade-in">
       <div class="header-section">
@@ -42,7 +43,7 @@ import { ApiService } from '../core/services/api.service';
       @if (isAdmin()) {
         <div class="glass-panel mb-3" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <label class="form-label mb-0" style="white-space: nowrap; color: #38bdf8; font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
+            <label class="form-label mb-0" style="white-space: nowrap; color: var(--primary); font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
             <select [(ngModel)]="selectedUserId" (change)="onChemistChange()" class="glass-input glass-select" style="width: 220px; padding: 6px 12px;">
               <option value="all">🏬 All Chemists / Stores</option>
               @for (user of chemistUsers(); track user._id) {
@@ -59,7 +60,12 @@ import { ApiService } from '../core/services/api.service';
           @if (activeTab() === 'medicines') {
             <div class="list-header">
               <h3>Registered Medicines Master</h3>
-              <span class="badge badge-info">{{ medicines().length }} Total</span>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <span class="badge badge-info">{{ medicines().length }} Total</span>
+                <button class="btn btn-sm btn-primary-glass" (click)="isAddMedicineDrawerOpen.set(true)">
+                  <i class="bi bi-plus-lg"></i> Add Medicine
+                </button>
+              </div>
             </div>
             
             <div class="glass-table-container">
@@ -90,7 +96,7 @@ import { ApiService } from '../core/services/api.service';
                             <i class="bi bi-geo-alt-fill"></i> {{ med.rack.name || med.rack }}
                           </span>
                         } @else {
-                          <span class="badge" (click)="openMapRackModal(med)" style="cursor: pointer; background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid var(--glass-border);" title="Click to assign storage rack">
+                          <span class="badge badge-secondary" (click)="openMapRackModal(med)" style="cursor: pointer;" title="Click to assign storage rack">
                             Unassigned
                           </span>
                         }
@@ -113,7 +119,12 @@ import { ApiService } from '../core/services/api.service';
           } @else {
             <div class="list-header">
               <h3>Warehouse Racks Configuration</h3>
-              <span class="badge badge-info">{{ racks().length }} Racks</span>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <span class="badge badge-info">{{ racks().length }} Racks</span>
+                <button class="btn btn-sm btn-primary-glass" (click)="isAddRackDrawerOpen.set(true)">
+                  <i class="bi bi-plus-lg"></i> Add Storage Rack
+                </button>
+              </div>
             </div>
 
             <div class="glass-table-container">
@@ -222,60 +233,138 @@ import { ApiService } from '../core/services/api.service';
         </div>
       </div>
 
-      <!-- Map Storage Rack Modal -->
-      @if (showMapRackModal()) {
-        <div class="modal-overlay" (click)="closeMapRackModal()">
-          <div class="modal-card" (click)="$event.stopPropagation()">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px;">
-              <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-geo-alt-fill" style="color: #38bdf8;"></i> Map Warehouse Storage Rack
-              </h3>
-              <button (click)="closeMapRackModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer;">✕</button>
+      <!-- Add Medicine Side Drawer -->
+      <app-side-drawer
+        [open]="isAddMedicineDrawerOpen()"
+        title="Add New Medicine"
+        subtitle="Register a new drug into inventory master"
+        width="520px"
+        primaryButtonText="Save Medicine"
+        secondaryButtonText="Cancel"
+        (closed)="isAddMedicineDrawerOpen.set(false)"
+        (submitted)="handleAddMedicineFromDrawer()">
+        
+        <form (ngSubmit)="handleAddMedicineFromDrawer()">
+          <div class="form-group">
+            <label class="form-label">Medicine Name *</label>
+            <input type="text" [(ngModel)]="medForm.name" name="name" class="glass-input" placeholder="e.g. Paracetamol" required>
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Generic Name (Formula)</label>
+            <input type="text" [(ngModel)]="medForm.genericName" name="genericName" class="glass-input" placeholder="e.g. Acetaminophen">
+          </div>
+
+          <div class="row-flex mt-3">
+            <div class="form-group w-50">
+              <label class="form-label">Strength</label>
+              <input type="text" [(ngModel)]="medForm.strength" name="strength" class="glass-input" placeholder="e.g. 500mg, 10ml">
             </div>
-
-            <div class="mt-3">
-              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
-                Configure storage rack location for <strong style="color: #fff;">{{ targetMedicineForMapping()?.name }}</strong> 
-                <span class="text-secondary" *ngIf="targetMedicineForMapping()?.strength"> ({{ targetMedicineForMapping()?.strength }})</span>.
-              </p>
-
-              <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <label class="form-label" style="margin-bottom: 0;">Select Storage Rack Location *</label>
-                  <button (click)="toggleInlineRackCreation()" type="button" class="btn-link-sm" style="background: none; border: none; color: #38bdf8; font-size: 0.8rem; cursor: pointer; text-decoration: underline;">
-                    {{ isAddingNewRack() ? 'Cancel' : '+ Add New Storage Rack' }}
-                  </button>
-                </div>
-
-                @if (!isAddingNewRack()) {
-                  <select [(ngModel)]="selectedRackForMapping" class="glass-input glass-select" style="font-size: 0.95rem; padding: 10px 16px;">
-                    <option value="null">-- Unassigned (No Rack Assigned) --</option>
-                    @for (rack of racks(); track rack._id) {
-                      <option [value]="rack._id">📍 {{ rack.name }} {{ rack.description ? '(' + rack.description + ')' : '' }}</option>
-                    }
-                  </select>
-                } @else {
-                  <!-- Inline New Rack Form -->
-                  <div class="inline-rack-form" style="background: rgba(0,0,0,0.3); border: 1px dashed rgba(56, 189, 248, 0.4); padding: 12px; border-radius: 8px;">
-                    <input type="text" [(ngModel)]="newRackName" placeholder="New Rack Name (e.g. Rack A1, Shelf 3)" class="glass-input mb-2" style="font-size: 0.88rem;">
-                    <input type="text" [(ngModel)]="newRackDescription" placeholder="Description (Optional)" class="glass-input mb-2" style="font-size: 0.88rem;">
-                    <button (click)="saveInlineRack()" [disabled]="!newRackName.trim()" type="button" class="btn btn-sm btn-primary w-100">
-                      <i class="bi bi-plus-circle-fill"></i> Create & Select Rack
-                    </button>
-                  </div>
-                }
-              </div>
-
-              <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
-                <button (click)="closeMapRackModal()" type="button" class="btn btn-glass">Cancel</button>
-                <button (click)="saveRackMapping()" type="button" class="btn btn-primary">
-                  <i class="bi bi-check-circle-fill"></i> Save Mapping
-                </button>
-              </div>
+            <div class="form-group w-50">
+              <label class="form-label">Category</label>
+              <select [(ngModel)]="medForm.category" name="category" class="glass-input glass-select">
+                <option value="Tablet">Tablet</option>
+                <option value="Capsule">Capsule</option>
+                <option value="Syrup">Syrup</option>
+                <option value="Injection">Injection</option>
+                <option value="Ointment">Ointment</option>
+                <option value="Inhaler">Inhaler</option>
+              </select>
             </div>
           </div>
+
+          <div class="row-flex mt-3">
+            <div class="form-group w-50">
+              <label class="form-label">Rack Location</label>
+              <select [(ngModel)]="medForm.rackId" name="rackId" class="glass-input glass-select">
+                <option [value]="null">Select Rack...</option>
+                @for (rack of racks(); track rack._id) {
+                  <option [value]="rack._id">{{ rack.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group w-50">
+              <label class="form-label">Min Stock Level</label>
+              <input type="number" [(ngModel)]="medForm.minStockLevel" name="minStockLevel" class="glass-input" min="1">
+            </div>
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Medicine Code / Barcode</label>
+            <input type="text" [(ngModel)]="medForm.code" name="code" class="glass-input" placeholder="e.g. EAN code">
+          </div>
+        </form>
+      </app-side-drawer>
+
+      <!-- Add Storage Rack Side Drawer -->
+      <app-side-drawer
+        [open]="isAddRackDrawerOpen()"
+        title="Configure Storage Rack"
+        subtitle="Add a new warehouse rack or shelf location"
+        width="450px"
+        primaryButtonText="Save Rack"
+        secondaryButtonText="Cancel"
+        (closed)="isAddRackDrawerOpen.set(false)"
+        (submitted)="handleAddRackFromDrawer()">
+        
+        <form (ngSubmit)="handleAddRackFromDrawer()">
+          <div class="form-group">
+            <label class="form-label">Rack Name *</label>
+            <input type="text" [(ngModel)]="rackForm.name" name="name" class="glass-input" placeholder="e.g. Rack A, Shelf 2" required>
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Description</label>
+            <textarea [(ngModel)]="rackForm.description" name="description" class="glass-input" rows="4" placeholder="Storage area specifications..."></textarea>
+          </div>
+        </form>
+      </app-side-drawer>
+
+      <!-- Map Storage Rack Side Drawer -->
+      <app-side-drawer
+        [open]="showMapRackModal()"
+        [title]="'Map Storage Rack: ' + (targetMedicineForMapping()?.name || '')"
+        subtitle="Configure storage shelf location for drug"
+        width="480px"
+        primaryButtonText="Save Mapping"
+        secondaryButtonText="Cancel"
+        (closed)="closeMapRackModal()"
+        (submitted)="saveRackMapping()">
+        
+        <div class="mt-2">
+          <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Configure storage rack location for <strong style="color: var(--text-primary);">{{ targetMedicineForMapping()?.name }}</strong> 
+            <span class="text-secondary" *ngIf="targetMedicineForMapping()?.strength"> ({{ targetMedicineForMapping()?.strength }})</span>.
+          </p>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="form-label" style="margin-bottom: 0;">Select Storage Rack Location *</label>
+              <button (click)="toggleInlineRackCreation()" type="button" class="btn-link-sm" style="background: none; border: none; color: var(--primary); font-size: 0.8rem; cursor: pointer; text-decoration: underline;">
+                {{ isAddingNewRack() ? 'Cancel' : '+ Add New Storage Rack' }}
+              </button>
+            </div>
+
+            @if (!isAddingNewRack()) {
+              <select [(ngModel)]="selectedRackForMapping" class="glass-input glass-select" style="font-size: 0.95rem; padding: 10px 16px;">
+                <option value="null">-- Unassigned (No Rack Assigned) --</option>
+                @for (rack of racks(); track rack._id) {
+                  <option [value]="rack._id">📍 {{ rack.name }} {{ rack.description ? '(' + rack.description + ')' : '' }}</option>
+                }
+              </select>
+            } @else {
+              <!-- Inline New Rack Form -->
+              <div class="inline-rack-form" style="background: var(--bg-muted); border: 1px dashed rgba(15, 118, 110, 0.3); padding: 12px; border-radius: 8px;">
+                <input type="text" [(ngModel)]="newRackName" placeholder="New Rack Name (e.g. Rack A1, Shelf 3)" class="glass-input mb-2" style="font-size: 0.88rem;">
+                <input type="text" [(ngModel)]="newRackDescription" placeholder="Description (Optional)" class="glass-input mb-2" style="font-size: 0.88rem;">
+                <button (click)="saveInlineRack()" [disabled]="!newRackName.trim()" type="button" class="btn btn-sm btn-primary w-100 mt-2">
+                  <i class="bi bi-plus-circle-fill"></i> Create & Select Rack
+                </button>
+              </div>
+            }
+          </div>
         </div>
-      }
+      </app-side-drawer>
     </div>
   `,
   styles: [`
@@ -291,9 +380,13 @@ import { ApiService } from '../core/services/api.service';
       gap: 20px;
       flex-wrap: wrap;
     }
-    .btn-group {
-      display: flex;
-      gap: 8px;
+    .header-section h1 {
+      font-size: 1.35rem;
+    }
+    .header-section p {
+      color: var(--text-secondary);
+      font-size: 0.87rem;
+      margin: 0;
     }
     .split-view {
       display: grid;
@@ -320,34 +413,24 @@ import { ApiService } from '../core/services/api.service';
     .mt-3 { margin-top: 16px; }
     .mt-2 { margin-top: 8px; }
     .mb-2 { margin-bottom: 8px; }
-    .ml-1 { margin-left: 4px; }
-    
-    .alert {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 0.9rem;
-    }
-    .alert-success {
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.2);
-      color: #34d399;
-    }
-    .alert-danger {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      color: #f87171;
-    }
+    .mb-3 { margin-bottom: 12px; }
+    .mb-0 { margin-bottom: 0; }
     .btn-primary-glass {
-      background: rgba(37, 99, 235, 0.15);
-      border: 1px solid rgba(37, 99, 235, 0.3);
-      color: #60a5fa;
+      background: rgba(15, 118, 110, 0.08);
+      border: 1px solid rgba(15, 118, 110, 0.2);
+      color: var(--primary);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 200ms;
     }
     .btn-primary-glass:hover {
-      background: rgba(37, 99, 235, 0.3);
-      color: #fff;
+      background: rgba(15, 118, 110, 0.15);
+    }
+    .text-secondary { color: var(--text-secondary); }
+    .modal-card {
+      padding: 24px;
+      max-width: 540px;
+      width: 90vw;
     }
   `]
 })
@@ -371,10 +454,22 @@ export class MedicineComponent implements OnInit {
   successMessage = signal<string | null>(null);
   errorMessage = signal<string | null>(null);
 
-  // Map Rack Modal State
+  // Drawer & Modal State
   showMapRackModal = signal<boolean>(false);
+  isAddMedicineDrawerOpen = signal<boolean>(false);
+  isAddRackDrawerOpen = signal<boolean>(false);
   targetMedicineForMapping = signal<any>(null);
   selectedRackForMapping: string = 'null';
+
+  handleAddMedicineFromDrawer(): void {
+    this.handleAddMedicine();
+    this.isAddMedicineDrawerOpen.set(false);
+  }
+
+  handleAddRackFromDrawer(): void {
+    this.handleAddRack();
+    this.isAddRackDrawerOpen.set(false);
+  }
   isAddingNewRack = signal<boolean>(false);
   newRackName: string = '';
   newRackDescription: string = '';

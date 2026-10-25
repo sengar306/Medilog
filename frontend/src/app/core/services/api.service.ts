@@ -441,4 +441,51 @@ export class ApiService {
       responseType: 'blob'
     });
   }
+
+  // --- Stockist B2B Wholesale API ---
+  getStockistCatalog(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/stockist/medicines/my`, { headers: this.getHeaders() });
+  }
+
+  getMarketplaceMedicines(search?: string, category?: string, stockistId?: string): Observable<any[]> {
+    const params: string[] = [];
+    if (search) params.push(`search=${encodeURIComponent(search)}`);
+    if (category && category !== 'All') params.push(`category=${encodeURIComponent(category)}`);
+    if (stockistId) params.push(`stockistId=${stockistId}`);
+    const qs = params.length > 0 ? `?${params.join('&')}` : '';
+    return this.http.get<any[]>(`${this.apiUrl}/stockist/marketplace${qs}`, { headers: this.getHeaders() });
+  }
+
+  createStockistMedicine(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/stockist/medicines`, data, { headers: this.getHeaders() });
+  }
+
+  updateStockistMedicine(id: string, data: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/stockist/medicines/${id}`, data, { headers: this.getHeaders() });
+  }
+
+  deleteStockistMedicine(id: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/stockist/medicines/${id}`, { headers: this.getHeaders() });
+  }
+
+  placeStockistOrder(data: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/stockist/orders`, data, { headers: this.getHeaders() });
+  }
+
+  getStockistOrders(type?: string): Observable<any[]> {
+    const qs = type ? `?type=${type}` : '';
+    return this.http.get<any[]>(`${this.apiUrl}/stockist/orders${qs}`, { headers: this.getHeaders() });
+  }
+
+  updateStockistOrderStatus(id: string, status: string, note?: string): Observable<any> {
+    return this.http.patch<any>(`${this.apiUrl}/stockist/orders/${id}/status`, { status, note }, { headers: this.getHeaders() });
+  }
+
+  getStockistNotifications(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/stockist/notifications`, { headers: this.getHeaders() });
+  }
+
+  dismissStockistNotification(id: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/stockist/notifications/${id}/read`, {}, { headers: this.getHeaders() });
+  }
 }

@@ -37,7 +37,7 @@ import { ApiService } from '../core/services/api.service';
             [value]="searchQuery()" 
             (input)="updateSearch($event)" 
             placeholder="Filter batches, medicine name, generic formula, batch number, transaction, or chemist..." 
-            style="flex: 1; border: none; outline: none; background: transparent; color: #fff; font-size: 1rem;" 
+            style="flex: 1; border: none; outline: none; background: transparent; color: var(--text-primary); font-size: 1rem;" 
           />
           @if (searchQuery()) {
             <button (click)="clearSearch()" style="border: none; background: transparent; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 4px;">
@@ -48,11 +48,11 @@ import { ApiService } from '../core/services/api.service';
 
         @if (isAdmin()) {
           <div style="display: flex; align-items: center; gap: 10px;">
-            <label class="form-label mb-0" style="white-space: nowrap; color: #38bdf8; font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
+            <label class="form-label mb-0" style="white-space: nowrap; color: var(--primary); font-weight: 600;"><i class="bi bi-shop"></i> Inspect Chemist Store:</label>
             <select [(ngModel)]="selectedUserId" (change)="onChemistChange()" class="glass-input glass-select" style="width: 200px; padding: 6px 12px;">
-              <option value="all">🏬 All Chemists / Stores</option>
+              <option value="all">ðŸ¬ All Chemists / Stores</option>
               @for (user of chemistUsers(); track user._id) {
-                <option [value]="user._id">🏥 {{ user.chemistName || user.username }} ({{ user.username }})</option>
+                <option [value]="user._id">ðŸ¥ {{ user.chemistName || user.username }} ({{ user.username }})</option>
               }
             </select>
           </div>
@@ -96,7 +96,7 @@ import { ApiService } from '../core/services/api.service';
                   <tr>
                     <td><strong>{{ batch.medicine?.name }}</strong> <small class="text-secondary">({{ batch.medicine?.strength }})</small></td>
                     <td>
-                      <span class="badge" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #7dd3fc;">
+                      <span class="badge" class="badge badge-info">
                         <i class="bi bi-shop"></i> {{ batch.chemistName || batch.user?.chemistName || batch.medicine?.user?.chemistName || 'Central Store' }}
                       </span>
                     </td>
@@ -505,3 +505,4 @@ export class InventoryComponent implements OnInit {
     return 'badge-warning'; // Adjustment
   }
 }
+

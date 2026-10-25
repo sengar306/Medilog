@@ -47,6 +47,7 @@ const loyaltyRoutes = require('./routes/loyalty');
 const purchaseReturnRoutes = require('./routes/purchase-return');
 const userRoutes = require('./routes/users');
 const transferRoutes = require('./routes/transfer');
+const stockistRoutes = require('./routes/stockist');
 
 // Register Routes (Mount exactly as specified in the PDF)
 app.use('/auth', authRoutes);
@@ -66,6 +67,7 @@ app.use('/loyalty', loyaltyRoutes);
 app.use('/purchase-returns', purchaseReturnRoutes);
 app.use('/users', userRoutes);
 app.use('/transfers', transferRoutes);
+app.use('/stockist', stockistRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -136,11 +138,12 @@ const seedDB = async () => {
     const InventoryBatch = require('./models/InventoryBatch');
     const Customer = require('./models/Customer');
 
-    // 1. Seed Roles (Super Admin, Admin, Chemist & User)
+    // 1. Seed Roles (Super Admin, Admin, Chemist, Stockist & User)
     const rolesToSeed = [
       { name: 'Super Admin', description: 'Master System Administrator with full global access' },
       { name: 'Admin', description: 'System Administrator with full access' },
       { name: 'Chemist', description: 'Chemist Pharmacy Store Owner' },
+      { name: 'Stockist', description: 'Wholesale Stockist & Medicine Supplier' },
       { name: 'User', description: 'Standard Pharmacy User' }
     ];
 
@@ -155,10 +158,12 @@ const seedDB = async () => {
     // 2. Seed Users
     const adminRole = await Role.findOne({ name: 'Admin' });
     const userRole = await Role.findOne({ name: 'User' });
+    const stockistRole = await Role.findOne({ name: 'Stockist' });
 
     const usersToSeed = [
       { username: 'admin', email: 'admin@medilog.com', password: 'admin123', role: adminRole._id, chemistName: 'Central Admin Store' },
-      { username: 'user', email: 'user@medilog.com', password: 'user123', role: userRole._id, chemistName: 'City Care Pharmacy' }
+      { username: 'user', email: 'user@medilog.com', password: 'user123', role: userRole._id, chemistName: 'City Care Pharmacy' },
+      { username: 'stockist1', email: 'stockist1@medilog.com', password: 'password123', role: stockistRole?._id, chemistName: 'Apex Wholesale Pharma' }
     ];
 
     for (const u of usersToSeed) {

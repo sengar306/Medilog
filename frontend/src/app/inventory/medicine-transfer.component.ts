@@ -2,11 +2,12 @@ import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/services/api.service';
+import { SideDrawerComponent } from '../core/components/side-drawer.component';
 
 @Component({
   selector: 'app-medicine-transfer',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SideDrawerComponent],
   template: `
     <div class="transfer-container animate-fade-in">
       <div class="page-header">
@@ -53,7 +54,7 @@ import { ApiService } from '../core/services/api.service';
       @if (activeTab() === 'incoming') {
         <div class="glass-panel">
           <div class="panel-header">
-            <h3><i class="bi bi-inbox-fill" style="color: #38bdf8;"></i> Incoming Medicine Transfer Requests</h3>
+            <h3><i class="bi bi-inbox-fill" style="color: var(--primary);"></i> Incoming Medicine Transfer Requests</h3>
             <span class="badge badge-info">{{ incomingTransfers().length }} Total</span>
           </div>
 
@@ -77,7 +78,7 @@ import { ApiService } from '../core/services/api.service';
                   <tr>
                     <td><code>{{ trf.transferNumber }}</code></td>
                     <td>
-                      <strong style="color: #38bdf8;">
+                      <strong style="color: var(--primary);">
                         <i class="bi bi-shop"></i> {{ trf.sender?.chemistName || trf.sender?.username || 'Unknown Store' }}
                       </strong>
                     </td>
@@ -123,7 +124,7 @@ import { ApiService } from '../core/services/api.service';
       @if (activeTab() === 'outgoing') {
         <div class="glass-panel">
           <div class="panel-header">
-            <h3><i class="bi bi-send-fill" style="color: #a855f7;"></i> Outgoing Medicine Transfers Sent</h3>
+            <h3><i class="bi bi-send-fill" style="color: var(--primary);"></i> Outgoing Medicine Transfers Sent</h3>
             <span class="badge badge-info">{{ outgoingTransfers().length }} Total</span>
           </div>
 
@@ -147,7 +148,7 @@ import { ApiService } from '../core/services/api.service';
                   <tr>
                     <td><code>{{ trf.transferNumber }}</code></td>
                     <td>
-                      <strong style="color: #a855f7;">
+                      <strong style="color: var(--primary);">
                         <i class="bi bi-shop"></i> {{ trf.receiver?.chemistName || trf.receiver?.username || 'Unknown Store' }}
                       </strong>
                     </td>
@@ -182,84 +183,76 @@ import { ApiService } from '../core/services/api.service';
         </div>
       }
 
-      <!-- Initiate Medicine Transfer Modal -->
-      @if (showInitiateModal()) {
-        <div class="modal-overlay" (click)="closeInitiateModal()">
-          <div class="modal-card" (click)="$event.stopPropagation()" style="max-width: 600px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px;">
-              <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                <i class="bi bi-send-plus-fill" style="color: #38bdf8;"></i> Initiate Medicine Transfer
-              </h3>
-              <button (click)="closeInitiateModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer;">✕</button>
-            </div>
+      <!-- Initiate Medicine Transfer Side Drawer -->
+      <app-side-drawer
+        [open]="showInitiateModal()"
+        title="Initiate Medicine Transfer"
+        subtitle="Transfer medicine batch to another chemist store"
+        width="540px"
+        primaryButtonText="Send Transfer Request"
+        secondaryButtonText="Cancel"
+        [submitDisabled]="!transferForm.receiverId || !selectedBatchId || transferForm.quantity < 1"
+        (closed)="closeInitiateModal()"
+        (submitted)="handleInitiateTransfer()">
 
-            <form (ngSubmit)="handleInitiateTransfer()" class="mt-3">
-              <div class="form-group">
-                <label class="form-label">Select Target Chemist Store / Recipient *</label>
-                <select [(ngModel)]="transferForm.receiverId" name="receiverId" class="glass-input glass-select" required style="padding: 10px 16px;">
-                  <option value="">-- Choose Recipient Store --</option>
-                  @for (user of users(); track user._id) {
-                    @if (user._id !== currentUserId()) {
-                      <option [value]="user._id">🏥 {{ user.chemistName || user.username }} ({{ user.username }})</option>
-                    }
-                  }
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Select Medicine & Batch from Stock *</label>
-                <select [(ngModel)]="selectedBatchId" (change)="onBatchSelect()" name="selectedBatchId" class="glass-input glass-select" required style="padding: 10px 16px;">
-                  <option value="">-- Choose Medicine Batch in Stock --</option>
-                  @for (batch of activeBatches(); track batch._id) {
-                    <option [value]="batch._id">
-                      💊 {{ batch.medicine?.name }} (Batch: {{ batch.batchNumber }}, Stock Left: {{ batch.quantity }})
-                    </option>
-                  }
-                </select>
-              </div>
-
-              @if (selectedBatchDetails()) {
-                <div class="batch-summary-card glass-panel my-3" style="padding: 12px; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 0.88rem;">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span>Expiry Date: <strong>{{ selectedBatchDetails().expiryDate | date:'mediumDate' }}</strong></span>
-                    <span>Available Stock: <strong style="color: #38bdf8;">{{ selectedBatchDetails().quantity }} units</strong></span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between;">
-                    <span>Purchase Rate: <strong>₹{{ selectedBatchDetails().purchaseRate }}</strong></span>
-                    <span>MRP: <strong>₹{{ selectedBatchDetails().mrp }}</strong></span>
-                  </div>
-                </div>
+        <form (ngSubmit)="handleInitiateTransfer()" class="mt-2">
+          <div class="form-group">
+            <label class="form-label">Select Target Chemist Store / Recipient *</label>
+            <select [(ngModel)]="transferForm.receiverId" name="receiverId" class="glass-input glass-select" required style="padding: 10px 16px;">
+              <option value="">-- Choose Recipient Store --</option>
+              @for (user of users(); track user._id) {
+                @if (user._id !== currentUserId()) {
+                  <option [value]="user._id">🏥 {{ user.chemistName || user.username }} ({{ user.username }})</option>
+                }
               }
-
-              <div class="form-group">
-                <label class="form-label">Transfer Quantity *</label>
-                <input 
-                  type="number" 
-                  [(ngModel)]="transferForm.quantity" 
-                  name="quantity" 
-                  class="glass-input" 
-                  min="1" 
-                  [max]="selectedBatchDetails() ? selectedBatchDetails().quantity : 9999" 
-                  placeholder="Enter units to transfer"
-                  required
-                >
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Transfer Remarks / Notes</label>
-                <input type="text" [(ngModel)]="transferForm.remarks" name="remarks" class="glass-input" placeholder="e.g. Emergency stock request, Branch transfer...">
-              </div>
-
-              <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
-                <button (click)="closeInitiateModal()" type="button" class="btn btn-glass">Cancel</button>
-                <button type="submit" class="btn btn-primary" [disabled]="!transferForm.receiverId || !selectedBatchId || transferForm.quantity < 1">
-                  <i class="bi bi-send-fill"></i> Send Transfer Request
-                </button>
-              </div>
-            </form>
+            </select>
           </div>
-        </div>
-      }
+
+          <div class="form-group mt-3">
+            <label class="form-label">Select Medicine & Batch from Stock *</label>
+            <select [(ngModel)]="selectedBatchId" (change)="onBatchSelect()" name="selectedBatchId" class="glass-input glass-select" required style="padding: 10px 16px;">
+              <option value="">-- Choose Medicine Batch in Stock --</option>
+              @for (batch of activeBatches(); track batch._id) {
+                <option [value]="batch._id">
+                  💊 {{ batch.medicine?.name }} (Batch: {{ batch.batchNumber }}, Stock Left: {{ batch.quantity }})
+                </option>
+              }
+            </select>
+          </div>
+
+          @if (selectedBatchDetails()) {
+            <div class="batch-summary-card glass-panel my-3" style="padding: 12px; background: var(--bg-muted); border-radius: 8px; font-size: 0.88rem;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Expiry Date: <strong>{{ selectedBatchDetails().expiryDate | date:'mediumDate' }}</strong></span>
+                <span>Available Stock: <strong style="color: var(--primary);">{{ selectedBatchDetails().quantity }} units</strong></span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span>Purchase Rate: <strong>₹{{ selectedBatchDetails().purchaseRate }}</strong></span>
+                <span>MRP: <strong>₹{{ selectedBatchDetails().mrp }}</strong></span>
+              </div>
+            </div>
+          }
+
+          <div class="form-group mt-3">
+            <label class="form-label">Transfer Quantity *</label>
+            <input 
+              type="number" 
+              [(ngModel)]="transferForm.quantity" 
+              name="quantity" 
+              class="glass-input" 
+              min="1" 
+              [max]="selectedBatchDetails() ? selectedBatchDetails().quantity : 9999" 
+              placeholder="Enter units to transfer"
+              required
+            >
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Transfer Remarks / Notes</label>
+            <input type="text" [(ngModel)]="transferForm.remarks" name="remarks" class="glass-input" placeholder="e.g. Emergency stock request, Branch transfer...">
+          </div>
+        </form>
+      </app-side-drawer>
     </div>
   `,
   styles: [`

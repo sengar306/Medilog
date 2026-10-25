@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <!-- Purple to Electric Cyan Blue Neon Gradient -->
+    <linearGradient id="neonPlusGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="40%" stop-color="#8b5cf6" />
+      <stop offset="85%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+
+    <!-- Inner Highlight Gradient -->
+    <linearGradient id="neonPlusStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7dd3fc" />
+      <stop offset="100%" stop-color="#f472b6" />
+    </linearGradient>
+
+    <!-- Soft Lavender Outer Glow Filter -->
+    <filter id="softLavenderGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur1" />
+      <feGaussianBlur stdDeviation="10" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient Outer Glow -->
+  <g filter="url(#softLavenderGlow)" opacity="0.85">
+    <!-- Horizontal Cross Bar -->
+    <rect x="18" y="37.5" width="64" height="25" rx="12.5" fill="url(#neonPlusGradient)" />
+    <!-- Vertical Cross Bar -->
+    <rect x="37.5" y="18" width="25" height="64" rx="12.5" fill="url(#neonPlusGradient)" />
+  </g>
+
+  <!-- Sharp Inner Vector Cross Body -->
+  <g fill="url(#neonPlusGradient)" stroke="url(#neonPlusStroke)" stroke-width="1.5">
+    <!-- Combined Plus Path with Perfect Smooth Rounded Corners -->
+    <path d="M 37.5 18 
+             A 12.5 12.5 0 0 1 62.5 18 
+             V 37.5 
+             H 82 
+             A 12.5 12.5 0 0 1 82 62.5 
+             H 62.5 
+             V 82 
+             A 12.5 12.5 0 0 1 37.5 82 
+             V 62.5 
+             H 18 
+             A 12.5 12.5 0 0 1 18 37.5 
+             H 37.5 
+             Z" />
+  </g>
+</svg>

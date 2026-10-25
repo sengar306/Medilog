@@ -28,7 +28,8 @@ backend.stderr.on('data', (data) => {
 
 // Start Frontend
 console.log('Launching Frontend Angular Serve...');
-const frontend = spawn('npx', ['ng', 'serve', '--port', '4300'], {
+const ngBin = path.join(__dirname, 'frontend', 'node_modules', '@angular', 'cli', 'bin', 'ng.js');
+const frontend = spawn('node', [ngBin, 'serve', '--port', '4300'], {
   cwd: path.join(__dirname, 'frontend'),
   env,
   shell: true
@@ -47,11 +48,11 @@ frontend.stderr.on('data', (data) => {
 // Handle termination
 const cleanExit = () => {
   console.log('\nShutting down child processes...');
-  backend.kill();
-  frontend.kill();
-  process.exit();
+  try { backend.kill(); } catch (e) {}
+  try { frontend.kill(); } catch (e) {}
+  process.exit(0);
 };
 
 process.on('SIGINT', cleanExit);
 process.on('SIGTERM', cleanExit);
-process.on('exit', cleanExit);
+
